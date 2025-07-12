@@ -22,41 +22,44 @@ lead = re.sub(r'\s+', ' ', raw_lead).strip().lower()
 if len(lead) > 500:
     st.warning("⚠️ Lead info is too long. Please keep it under 500 characters.")
 
-elif st.button("✉️ Generate Cold Email"):
-    if not lead:
-        st.warning("Please enter some lead info first.")
-    else:
-        start_time = time.time()
-        try:
-            prompt = (
-                f"Write 3 {length.lower()} {style.lower()} cold email openers based on this lead: {lead}."
-            )
-            if company:
-                prompt += f" The company name is {company}."
-            if job_title:
-                prompt += f" The job title is {job_title}."
+else:
+    generate_btn = st.button("✉️ Generate Cold Email", disabled=False, key="generate_btn")
+    if generate_btn:
+        if not lead:
+            st.warning("Please enter some lead info first.")
+        else:
+            with st.spinner("Generating..."):
+                start_time = time.time()
+                try:
+                    prompt = (
+                        f"Write 3 {length.lower()} {style.lower()} cold email openers based on this lead: {lead}."
+                    )
+                    if company:
+                        prompt += f" The company name is {company}."
+                    if job_title:
+                        prompt += f" The job title is {job_title}."
 
-            response = openai.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": "You are an expert cold outreach copywriter."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=300,
-                temperature=0.7
-            )
+                    response = openai.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": "You are an expert cold outreach copywriter."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        max_tokens=300,
+                        temperature=0.7
+                    )
 
-            result = response.choices[0].message.content.strip()
-            duration = round(time.time() - start_time, 2)
-            st.success("✅ Generated cold openers:")
+                    result = response.choices[0].message.content.strip()
+                    duration = round(time.time() - start_time, 2)
+                    st.success("✅ Generated cold openers:")
 
-            for idx, opener in enumerate(result.split("\n")):
-                if opener.strip():
-                    st.markdown(f"**{opener.strip()}**")
-                    st.code(opener.strip())
-                    st.download_button(f"📋 Copy Opener {idx+1}", opener.strip(), f"opener_{idx+1}.txt")
+                    for idx, opener in enumerate(result.split("\n")):
+                        if opener.strip():
+                            st.markdown(f"**{opener.strip()}**")
+                            st.code(opener.strip())
+                            st.download_button(f"📋 Copy Opener {idx+1}", opener.strip(), f"opener_{idx+1}.txt")
 
-            st.caption(f"⏱️ Generated in {duration} seconds | 📏 {len(result)} characters")
+                    st.caption(f"⏱️ Generated in {duration} seconds | 📏 {len(result)} characters")
 
-        except Exception as e:
-            st.error(f"Failed to generate message: {str(e)}")
+                except Exception as e:
+                    st.error(f"Failed to generate message: {str(e)}")
