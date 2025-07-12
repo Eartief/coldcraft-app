@@ -55,21 +55,6 @@ def render_copy_button(opener_text: str, idx: int):
     </script>
     """, unsafe_allow_html=True)
 
-def render_email_buttons(opener_text):
-    encoded = urllib.parse.quote(opener_text)
-    gmail_link = f"https://mail.google.com/mail/?view=cm&fs=1&to=&su=Quick intro&body={encoded}"
-    outlook_link = f"https://outlook.office.com/mail/deeplink/compose?body={encoded}&subject=Quick%20intro"
-    st.markdown(f"""
-        <div style='margin-top:4px;margin-bottom:8px;'>
-            <a href='{gmail_link}' target='_blank' style='text-decoration:none;'>
-                <button style='margin-right:10px;'>📧 Gmail</button>
-            </a>
-            <a href='{outlook_link}' target='_blank' style='text-decoration:none;'>
-                <button>📨 Outlook</button>
-            </a>
-        </div>
-    """, unsafe_allow_html=True)
-
 # ------------------------
 # Theme toggle (light/dark)
 # ------------------------
@@ -155,11 +140,7 @@ if st.button("✉️ Generate Cold Email"):
                     else:
                         st.markdown(opener)
 
-                    cols = st.columns([1, 1])
-                    with cols[0]:
-                        render_copy_button(opener, idx+1)
-                    with cols[1]:
-                        render_email_buttons(opener)
+                    render_copy_button(opener, idx+1)
 
                 st.text_area("📋 All Openers (copy manually if needed):", combined_output, height=150)
 
