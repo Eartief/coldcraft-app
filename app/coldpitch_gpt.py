@@ -29,8 +29,7 @@ def build_prompt(lead, company, job_title, style, length, num_openers):
     return prompt
 
 def parse_openers(text: str) -> list:
-    candidates = [line.strip() for line in text.split("\n") if line.strip()]
-    return candidates
+    return [line.strip() for line in text.split("\n") if line.strip()]
 
 def save_to_csv(path, headers, row):
     file_exists = os.path.exists(path)
@@ -39,6 +38,23 @@ def save_to_csv(path, headers, row):
         if not file_exists:
             writer.writerow(headers)
         writer.writerow(row)
+
+# ------------------------
+# Theme toggle (light/dark)
+# ------------------------
+if "theme" not in st.session_state:
+    st.session_state["theme"] = "Dark"
+
+selected_theme = st.selectbox("🌓 Select Theme", ["Dark", "Light"], index=0 if st.session_state["theme"] == "Dark" else 1)
+st.session_state["theme"] = selected_theme
+
+if selected_theme == "Light":
+    st.markdown("""
+        <style>
+            html, body, [class*="css"]  { background-color: #fafafa !important; color: #111 !important; }
+            textarea, input, select, .stTextInput, .stTextArea { background-color: #fff !important; color: #000 !important; }
+        </style>
+    """, unsafe_allow_html=True)
 
 # ------------------------
 # UI Inputs
@@ -96,19 +112,23 @@ else:
 
                     st.success("✅ Generated cold openers:")
                     for idx, opener in enumerate(openers):
-                        with st.container():
-                            st.markdown(f"### ✉️ Opener {idx+1}")
-                            if view_mode == "Card View":
-                                st.markdown(f"<div style='border-left: 4px solid #ccc; padding-left: 1rem; margin-bottom: 1rem;'>{opener}</div>", unsafe_allow_html=True)
-                            else:
-                                st.markdown(opener)
+                        st.markdown(f"### ✉️ Opener {idx+1}")
+                        if view_mode == "Card View":
+                            st.markdown(f"""
+                                <div style='border-left: 4px solid #ccc; padding-left: 1rem; margin-bottom: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px;'>
+                                    {opener}
+                                </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(opener)
 
+                        cols = st.columns([1, 1, 2])
+                        with cols[0]:
                             st.download_button("📋 Copy", opener, f"opener_{idx+1}.txt", key=f"copy_{idx+1}")
-
-                            gmail_link = f"https://mail.google.com/mail/?view=cm&fs=1&to=&su=Quick intro&body={urllib.parse.quote(opener)}"
-                            st.markdown(f"[📨 Send with Gmail]({gmail_link})", unsafe_allow_html=True)
-
-                            if st.button(f"⭐ Save Opener {idx+1} as Favorite", key=f"fav_{idx+1}"):
+                        with cols[1]:
+                            st.markdown(f"[📨 Gmail](https://mail.google.com/mail/?view=cm&fs=1&to=&su=Quick intro&body={urllib.parse.quote(opener)})", unsafe_allow_html=True)
+                        with cols[2]:
+                            if st.button(f"⭐ Save Opener {idx+1}", key=f"fav_{idx+1}"):
                                 favorites.append(opener)
 
                     st.download_button("📥 Copy All Openers", combined_output, file_name="all_openers.txt")
@@ -149,3 +169,22 @@ if os.path.exists("lead_log.csv"):
     csv_buffer = StringIO()
     filtered_df.to_csv(csv_buffer, index=False)
     st.download_button("📥 Download Filtered History", csv_buffer.getvalue(), "filtered_leads.csv")
+
+    # ------------------------
+    # Analytics Section
+    # ------------------------
+    st.markdown("---")
+    st.subheader("📈 Insights & Stats")
+
+    stats1, stats2 = st.columns(2)
+    with stats1:
+        st.metric("Total Leads", len(df))
+        st.metric("Total Favorites", df[[col for col in df.columns if col.startswith("favorite_")]].notna().sum().sum())
+    with stats2:
+        st.bar_chart(df["style"].value_counts())
+        st.bar_chart(df[[col for col in df.columns if col.startswith("favorite_")]].notna().sum(axis=1))
+
+    tag_dist = df["tag"].value_counts()
+    if not tag_dist.empty:
+        st.subheader("🎯 Tag Distribution")
+        st.dataframe(tag_dist.reset_index().rename(columns={"index": "Tag", "tag": "Count"}))
