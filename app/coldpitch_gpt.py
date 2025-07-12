@@ -1,12 +1,10 @@
-import streamlit as st
+""import streamlit as st
 import openai
 import os
 import re
 import time
 import csv
-import pandas as pd
 from datetime import datetime
-from io import StringIO
 import urllib.parse
 
 st.set_page_config(page_title='ColdCraft', layout='centered')
@@ -29,9 +27,8 @@ def build_prompt(lead, company, job_title, style, length, num_openers):
     return prompt
 
 def parse_openers(text: str, expected_count: int = 5) -> list:
-    candidates = re.split(r'\n\d+[.)\s-]*', text)
-    candidates = [line.strip() for line in candidates if len(line.strip()) > 10]
-    return candidates[:expected_count]
+    matches = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)', text, re.DOTALL)
+    return [op.strip() for op in matches][:expected_count]
 
 def save_to_csv(path, headers, row):
     file_exists = os.path.exists(path)
@@ -70,8 +67,15 @@ st.session_state["theme"] = selected_theme
 if selected_theme == "Light":
     st.markdown("""
         <style>
-            html, body, [class*="css"]  { background-color: #fafafa !important; color: #111 !important; }
-            textarea, input, select, .stTextInput, .stTextArea { background-color: #fff !important; color: #000 !important; }
+            html, body, .stApp { background-color: #f8f9fa !important; color: #111 !important; }
+            textarea, input, select { background-color: #fff !important; color: #000 !important; }
+        </style>
+    """, unsafe_allow_html=True)
+elif selected_theme == "Dark":
+    st.markdown("""
+        <style>
+            html, body, .stApp { background-color: #0e1117 !important; color: #fff !important; }
+            textarea, input, select { background-color: #1e1e1e !important; color: #fff !important; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -98,70 +102,63 @@ lead = clean_lead(raw_lead)
 # ------------------------
 # Generation
 # ------------------------
-if len(lead) > 500:
-    st.warning("⚠️ Lead info is too long. Please keep it under 500 characters.")
-else:
-    if 'generate_disabled' not in st.session_state:
-        st.session_state.generate_disabled = False
+if st.button("✉️ Generate Cold Email"):
+    if not lead:
+        st.warning("Please enter some lead info first.")
+    elif len(lead) > 500:
+        st.warning("⚠️ Lead info is too long. Please keep it under 500 characters.")
+    else:
+        with st.spinner("Generating..."):
+            try:
+                start_time = time.time()
+                response = openai.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": "You are a world-class B2B cold email copywriter. Only return the email content itself."},
+                        {"role": "user", "content": build_prompt(lead, company, job_title, style, length, num_openers)}
+                    ],
+                    max_tokens=300,
+                    temperature=0.7
+                )
 
-    if st.button("✉️ Generate Cold Email", disabled=st.session_state.generate_disabled):
-        if not lead:
-            st.warning("Please enter some lead info first.")
-        else:
-            st.session_state.generate_disabled = True
-            with st.spinner("Generating..."):
-                try:
-                    start_time = time.time()
+                result = response.choices[0].message.content.strip()
+                duration = round(time.time() - start_time, 2)
+                openers = parse_openers(result, num_openers)
+                st.session_state.openers = openers
 
-                    response = openai.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": "You are a world-class B2B cold email copywriter. Only return the email content itself. Do not preface with comments like 'Certainly!' or 'Here are...'"},
-                            {"role": "user", "content": build_prompt(lead, company, job_title, style, length, num_openers)}
-                        ],
-                        max_tokens=300,
-                        temperature=0.7
-                    )
+                st.success("✅ Generated cold openers:")
+                combined_output = "\n\n".join(openers)
+                favorites = []
 
-                    result = response.choices[0].message.content.strip()
-                    duration = round(time.time() - start_time, 2)
-                    openers = parse_openers(result, num_openers)
-                    st.session_state["openers"] = openers
-                    combined_output = "\n\n".join(openers)
-                    favorites = []
+                for idx, opener in enumerate(openers):
+                    st.markdown(f"### ✉️ Opener {idx+1}")
+                    if view_mode == "Card View":
+                        st.markdown(f"""
+                            <div style='border-left: 4px solid #ccc; padding-left: 1rem; margin-bottom: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px;'>
+                                {opener}
+                            </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(opener)
 
-                    st.success("✅ Generated cold openers:")
-                    for idx, opener in enumerate(openers):
-                        st.markdown(f"### ✉️ Opener {idx+1}")
-                        if view_mode == "Card View":
-                            st.markdown(f"""
-                                <div style='border-left: 4px solid #ccc; padding-left: 1rem; margin-bottom: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px;'>
-                                    {opener}
-                                </div>
-                            """, unsafe_allow_html=True)
-                        else:
-                            st.markdown(opener)
+                    cols = st.columns([1, 1, 2])
+                    with cols[0]:
+                        render_copy_button(opener, idx+1)
+                    with cols[1]:
+                        st.markdown(f"[📧 Gmail](https://mail.google.com/mail/?view=cm&fs=1&to=&su=Quick intro&body={urllib.parse.quote(opener)})", unsafe_allow_html=True)
+                    with cols[2]:
+                        if st.button(f"⭐ Save Opener {idx+1}", key=f"fav_{idx+1}"):
+                            favorites.append(opener)
 
-                        cols = st.columns([1, 1, 2])
-                        with cols[0]:
-                            render_copy_button(opener, idx+1)
-                        with cols[1]:
-                            st.markdown(f"[📧 Gmail](https://mail.google.com/mail/?view=cm&fs=1&to=&su=Quick intro&body={urllib.parse.quote(opener)})", unsafe_allow_html=True)
-                        with cols[2]:
-                            if st.button(f"⭐ Save Opener {idx+1}", key=f"fav_{idx+1}"):
-                                favorites.append(opener)
+                st.text_area("📋 All Openers (copy manually if needed):", combined_output, height=150)
 
-                    st.text_area("📋 All Openers (copy manually if needed):", combined_output, height=150)
+                padded_favorites = favorites + [''] * (num_openers - len(favorites))
+                log_row = [datetime.now().isoformat(), lead, company, job_title, style, length, notes, tag, *openers[:5], *padded_favorites[:5]]
+                headers = ["timestamp", "lead", "company", "job_title", "style", "length", "notes", "tag"] + \
+                          [f"opener_{i+1}" for i in range(5)] + [f"favorite_{i+1}" for i in range(5)]
+                save_to_csv("lead_log.csv", headers, log_row)
 
-                    padded_favorites = favorites + [''] * (num_openers - len(favorites))
-                    log_row = [datetime.now().isoformat(), lead, company, job_title, style, length, notes, tag, *openers[:5], *padded_favorites[:5]]
-                    headers = ["timestamp", "lead", "company", "job_title", "style", "length", "notes", "tag"] + \
-                              [f"opener_{i+1}" for i in range(5)] + [f"favorite_{i+1}" for i in range(5)]
-                    save_to_csv("lead_log.csv", headers, log_row)
+                st.caption(f"⏱️ Generated in {duration} seconds | 📏 {len(result)} characters")
 
-                    st.caption(f"⏱️ Generated in {duration} seconds | 📏 {len(result)} characters")
-
-                except Exception as e:
-                    st.error(f"Failed to generate message: {str(e)}")
-                finally:
-                    st.session_state.generate_disabled = False
+            except Exception as e:
+                st.error(f"❌ Error generating openers: {e}")
