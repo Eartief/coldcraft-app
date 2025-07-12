@@ -17,9 +17,9 @@ st.set_page_config(page_title='ColdCraft', layout='centered')
 def clean_lead(text: str) -> str:
     return re.sub(r'\s+', ' ', text).strip().lower()
 
-def build_prompt(lead, company, job_title, style, length):
+def build_prompt(lead, company, job_title, style, length, num_openers):
     prompt = (
-        f"Write 3 {length.lower()} {style.lower()} cold email openers for outreach. "
+        f"Write {num_openers} {length.lower()} {style.lower()} cold email openers for outreach. "
         f"Use this lead context: {lead}."
     )
     if company:
@@ -30,7 +30,7 @@ def build_prompt(lead, company, job_title, style, length):
 
 def parse_openers(text: str) -> list:
     candidates = [line.strip() for line in text.split("\n") if line.strip()]
-    return candidates[:3]
+    return candidates
 
 def save_to_csv(path, headers, row):
     file_exists = os.path.exists(path)
@@ -55,6 +55,7 @@ notes = st.text_input("📝 Internal Notes (optional):")
 tag = st.selectbox("🏷️ Tag this lead", ["None", "Hot", "Follow-up", "Cold", "Replied"], index=0)
 style = st.selectbox("✍️ Choose a tone/style: ", ["Friendly", "Professional", "Funny", "Bold", "Casual"])
 length = st.radio("📏 Select opener length:", ["Short", "Medium", "Long"], index=1)
+num_openers = st.slider("📝 Number of openers to generate:", min_value=1, max_value=5, value=3)
 view_mode = st.radio("📐 Display Mode", ["List View", "Card View"], index=1)
 
 lead = clean_lead(raw_lead)
@@ -81,7 +82,7 @@ else:
                         model="gpt-4o",
                         messages=[
                             {"role": "system", "content": "You are a world-class B2B cold email copywriter. Only return the email content itself. Do not preface with comments like 'Certainly!' or 'Here are...'"},
-                            {"role": "user", "content": build_prompt(lead, company, job_title, style, length)}
+                            {"role": "user", "content": build_prompt(lead, company, job_title, style, length, num_openers)}
                         ],
                         max_tokens=300,
                         temperature=0.7
@@ -112,9 +113,10 @@ else:
 
                     st.download_button("📥 Copy All Openers", combined_output, file_name="all_openers.txt")
 
-                    padded_favorites = favorites + [''] * (3 - len(favorites))
-                    log_row = [datetime.now().isoformat(), lead, company, job_title, style, length, notes, tag, *openers, *padded_favorites]
-                    headers = ["timestamp", "lead", "company", "job_title", "style", "length", "notes", "tag", "opener_1", "opener_2", "opener_3", "favorite_1", "favorite_2", "favorite_3"]
+                    padded_favorites = favorites + [''] * (num_openers - len(favorites))
+                    log_row = [datetime.now().isoformat(), lead, company, job_title, style, length, notes, tag, *openers[:5], *padded_favorites[:5]]
+                    headers = ["timestamp", "lead", "company", "job_title", "style", "length", "notes", "tag"] + \
+                              [f"opener_{i+1}" for i in range(5)] + [f"favorite_{i+1}" for i in range(5)]
                     save_to_csv("lead_log.csv", headers, log_row)
 
                     st.caption(f"⏱️ Generated in {duration} seconds | 📏 {len(result)} characters")
