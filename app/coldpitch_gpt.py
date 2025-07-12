@@ -5,7 +5,6 @@ import re
 import time
 import csv
 from datetime import datetime
-import urllib.parse
 
 st.set_page_config(page_title='ColdCraft', layout='centered')
 
@@ -38,23 +37,6 @@ def save_to_csv(path, headers, row):
             writer.writerow(headers)
         writer.writerow(row)
 
-def render_copy_button(opener_text: str, idx: int):
-    btn_id = f"copy_btn_{idx}"
-    st.markdown(f"""
-    <button id="{btn_id}" style="margin-top:4px;margin-bottom:8px">📋 Copy to Clipboard</button>
-    <script>
-    const btn = document.getElementById('{btn_id}');
-    if (btn) {{
-      btn.onclick = () => {{
-        navigator.clipboard.writeText(`{opener_text}`).then(() => {{
-          btn.innerText = '✅ Copied!';
-          setTimeout(() => btn.innerText = '📋 Copy to Clipboard', 2000);
-        }});
-      }}
-    }}
-    </script>
-    """, unsafe_allow_html=True)
-
 # ------------------------
 # Theme toggle (light/dark)
 # ------------------------
@@ -67,15 +49,15 @@ st.session_state["theme"] = selected_theme
 if selected_theme == "Light":
     st.markdown("""
         <style>
-            html, body, .stApp {{ background-color: #f8f9fa !important; color: #111 !important; }}
-            textarea, input, select {{ background-color: #fff !important; color: #000 !important; }}
+            html, body, .stApp { background-color: #f8f9fa !important; color: #111 !important; }
+            textarea, input, select { background-color: #fff !important; color: #000 !important; }
         </style>
     """, unsafe_allow_html=True)
 elif selected_theme == "Dark":
     st.markdown("""
         <style>
-            html, body, .stApp {{ background-color: #0e1117 !important; color: #fff !important; }}
-            textarea, input, select {{ background-color: #1e1e1e !important; color: #fff !important; }}
+            html, body, .stApp { background-color: #0e1117 !important; color: #fff !important; }
+            textarea, input, select { background-color: #1e1e1e !important; color: #fff !important; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -140,7 +122,7 @@ if st.button("✉️ Generate Cold Email"):
                     else:
                         st.markdown(opener)
 
-                    render_copy_button(opener, idx+1)
+                    st.code(opener, language='text')
 
                 st.text_area("📋 All Openers (copy manually if needed):", combined_output, height=150)
 
