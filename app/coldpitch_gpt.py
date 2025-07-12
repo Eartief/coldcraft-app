@@ -40,6 +40,11 @@ def save_to_csv(path, headers, row):
             writer.writerow(headers)
         writer.writerow(row)
 
+def reset_form():
+    for key in st.session_state.keys():
+        del st.session_state[key]
+    st.experimental_rerun()
+
 # ------------------------
 # UI Inputs
 # ------------------------
@@ -58,7 +63,7 @@ length = st.radio("📏 Select opener length:", ["Short", "Medium", "Long"], ind
 view_mode = st.radio("📐 Display Mode", ["List View", "Card View"], index=1)
 
 if st.button("🔄 Reset Form"):
-    st.experimental_rerun()
+    reset_form()
 
 lead = clean_lead(raw_lead)
 
