@@ -55,13 +55,17 @@ def render_copy_button(opener_text: str, idx: int):
     </script>
     """, unsafe_allow_html=True)
 
+def render_email_buttons(opener_text):
+    encoded = urllib.parse.quote(opener_text)
+    gmail_link = f"https://mail.google.com/mail/?view=cm&fs=1&to=&su=Quick intro&body={encoded}"
+    outlook_link = f"https://outlook.office.com/mail/deeplink/compose?body={encoded}&subject=Quick%20intro"
+    st.markdown(f"[📧 Gmail]({gmail_link}) &nbsp;&nbsp; | &nbsp;&nbsp; [📨 Outlook]({outlook_link})", unsafe_allow_html=True)
+
 # ------------------------
 # Theme toggle (light/dark)
 # ------------------------
 if "theme" not in st.session_state:
     st.session_state["theme"] = "Dark"
-if "favorites" not in st.session_state:
-    st.session_state.favorites = []
 
 selected_theme = st.selectbox("🌃 Select Theme", ["Dark", "Light"], index=0 if st.session_state["theme"] == "Dark" else 1)
 st.session_state["theme"] = selected_theme
@@ -127,7 +131,6 @@ if st.button("✉️ Generate Cold Email"):
                 duration = round(time.time() - start_time, 2)
                 openers = parse_openers(result, num_openers)
                 st.session_state.openers = openers
-                st.session_state.favorites = []
 
                 st.success("✅ Generated cold openers:")
                 combined_output = "\n\n".join(openers)
@@ -143,19 +146,15 @@ if st.button("✉️ Generate Cold Email"):
                     else:
                         st.markdown(opener)
 
-                    cols = st.columns([1, 1, 2])
+                    cols = st.columns([1, 1])
                     with cols[0]:
                         render_copy_button(opener, idx+1)
                     with cols[1]:
-                        st.markdown(f"[📧 Gmail](https://mail.google.com/mail/?view=cm&fs=1&to=&su=Quick intro&body={urllib.parse.quote(opener)})", unsafe_allow_html=True)
-                    with cols[2]:
-                        if st.button(f"⭐ Save Opener {idx+1}", key=f"fav_{idx+1}"):
-                            if opener not in st.session_state.favorites:
-                                st.session_state.favorites.append(opener)
+                        render_email_buttons(opener)
 
                 st.text_area("📋 All Openers (copy manually if needed):", combined_output, height=150)
 
-                padded_favorites = st.session_state.favorites + [''] * (num_openers - len(st.session_state.favorites))
+                padded_favorites = [''] * num_openers
                 log_row = [datetime.now().isoformat(), lead, company, job_title, style, length, notes, tag, *openers[:5], *padded_favorites[:5]]
                 headers = ["timestamp", "lead", "company", "job_title", "style", "length", "notes", "tag"] + \
                           [f"opener_{i+1}" for i in range(5)] + [f"favorite_{i+1}" for i in range(5)]
