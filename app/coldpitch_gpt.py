@@ -5,18 +5,6 @@ import re
 import time
 import csv
 from datetime import datetime
-from supabase import create_client, Client
-
-SUPABASE_URL = st.secrets["supabase"]["url"]
-SUPABASE_KEY = st.secrets["supabase"]["anon_key"]
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# Test it by listing tables (optional)
-try:
-    table_list = supabase.table("leads").select("*").limit(1).execute()
-    st.success("✅ Supabase connection successful!")
-except Exception as e:
-    st.error(f"❌ Supabase error: {e}")
 
 st.set_page_config(page_title='ColdCraft', layout='centered')
 
@@ -40,6 +28,14 @@ def build_prompt(lead, company, job_title, style, length, num_openers):
 def parse_openers(text: str, expected_count: int = 5) -> list:
     matches = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)', text, re.DOTALL)
     return [op.strip() for op in matches][:expected_count]
+
+def save_to_csv(path, headers, row):
+    file_exists = os.path.exists(path)
+    with open(path, mode='a', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(headers)
+        writer.writerow(row)
 
 # ------------------------
 # Theme toggle (light/dark)
@@ -130,21 +126,11 @@ if st.button("✉️ Generate Cold Email"):
 
                 st.text_area("📋 All Openers (copy manually if needed):", combined_output, height=150)
 
-                try:
-                    supabase.table("leads").insert({
-                        "timestamp": datetime.now().isoformat(),
-                        "lead": lead,
-                        "company": company,
-                        "job_title": job_title,
-                        "style": style,
-                        "length": length,
-                        "notes": notes,
-                        "tag": tag,
-                        "openers": openers[:num_openers]
-                    }).execute()
-                    st.success("✅ Lead saved to Supabase.")
-                except Exception as db_err:
-                    st.error(f"❌ Failed to save to Supabase: {db_err}")
+                padded_favorites = [''] * num_openers
+                log_row = [datetime.now().isoformat(), lead, company, job_title, style, length, notes, tag, *openers[:5], *padded_favorites[:5]]
+                headers = ["timestamp", "lead", "company", "job_title", "style", "length", "notes", "tag"] + \
+                          [f"opener_{i+1}" for i in range(5)] + [f"favorite_{i+1}" for i in range(5)]
+                save_to_csv("lead_log.csv", headers, log_row)
 
                 st.caption(f"⏱️ Generated in {duration} seconds | 📏 {len(result)} characters")
 
