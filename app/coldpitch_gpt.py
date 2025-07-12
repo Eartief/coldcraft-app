@@ -16,7 +16,8 @@ raw_lead = st.text_area("🔍 Paste LinkedIn bio, job post, or context about you
 company = st.text_input("🏢 Company Name (optional):")
 job_title = st.text_input("💼 Job Title (optional):")
 style = st.selectbox("✍️ Choose a tone/style: ", ["Friendly", "Professional", "Funny", "Bold", "Casual"])
-lead = re.sub(r'\s+', ' ', raw_lead).strip().lower()  # Normalize whitespace, trim, lowercase
+length = st.radio("📏 Select opener length:", ["Short", "Medium", "Long"], index=1)
+lead = re.sub(r'\s+', ' ', raw_lead).strip().lower()
 
 if len(lead) > 500:
     st.warning("⚠️ Lead info is too long. Please keep it under 500 characters.")
@@ -27,7 +28,9 @@ elif st.button("✉️ Generate Cold Email"):
     else:
         start_time = time.time()
         try:
-            prompt = f"Write 3 short, {style.lower()} cold email openers based on this lead: {lead}."
+            prompt = (
+                f"Write 3 {length.lower()} {style.lower()} cold email openers based on this lead: {lead}."
+            )
             if company:
                 prompt += f" The company name is {company}."
             if job_title:
@@ -39,17 +42,21 @@ elif st.button("✉️ Generate Cold Email"):
                     {"role": "system", "content": "You are an expert cold outreach copywriter."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=180,
+                max_tokens=300,
                 temperature=0.7
             )
 
             result = response.choices[0].message.content.strip()
             duration = round(time.time() - start_time, 2)
             st.success("✅ Generated cold openers:")
-            st.text(result)
-            st.caption(f"⏱️ Generated in {duration} seconds | 📏 {len(result)} characters")
 
-            st.download_button("📋 Copy to Clipboard", result, "cold_openers.txt")
+            for idx, opener in enumerate(result.split("\n")):
+                if opener.strip():
+                    st.markdown(f"**{opener.strip()}**")
+                    st.code(opener.strip())
+                    st.download_button(f"📋 Copy Opener {idx+1}", opener.strip(), f"opener_{idx+1}.txt")
+
+            st.caption(f"⏱️ Generated in {duration} seconds | 📏 {len(result)} characters")
 
         except Exception as e:
             st.error(f"Failed to generate message: {str(e)}")
