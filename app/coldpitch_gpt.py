@@ -8,7 +8,7 @@ st.title('🧊 ColdCraft - Cold Email Generator')
 st.write('Paste your lead info below and get a personalized cold email opener.')
 
 # Get OpenAI key from secrets
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Input form
 raw_lead = st.text_area("🔍 Paste LinkedIn bio, job post, or context about your lead:", height=200)
@@ -19,7 +19,7 @@ if st.button("✉️ Generate Cold Email"):
         st.warning("Please enter some lead info first.")
     else:
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are an expert cold outreach copywriter."},
