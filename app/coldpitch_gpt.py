@@ -115,7 +115,7 @@ if st.button("✉️ Generate Cold Email"):
                     st.markdown(f"### ✉️ Opener {idx+1}")
                     if view_mode == "Card View":
                         st.markdown(f"""
-                            <div style='padding: 1rem; margin-bottom: 1rem; border-radius: 12px; background-color: rgba(240,240,255,0.1); border: 1px solid rgba(200,200,200,0.3); box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>
+                            <div style='border-left: 4px solid #ccc; padding-left: 1rem; margin-bottom: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px;'>
                                 {opener}
                             </div>
                         """, unsafe_allow_html=True)
