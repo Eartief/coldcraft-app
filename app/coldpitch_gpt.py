@@ -61,7 +61,9 @@ else:
                     duration = round(time.time() - start_time, 2)
 
                     st.success("✅ Generated cold openers:")
-                    openers = [op.strip() for op in result.split("\n") if op.strip()]
+
+                    # Filter out intro text and keep only real openers
+                    openers = [op.strip() for op in result.split("\n") if op.strip() and not op.lower().startswith("certainly") and not op.lower().startswith("here are")]
 
                     for idx, opener in enumerate(openers):
                         with st.container():
