@@ -19,7 +19,7 @@ def clean_lead(text: str) -> str:
 
 def build_prompt(lead, company, job_title, style, length, num_openers):
     prompt = (
-        f"Write {num_openers} {length.lower()} {style.lower()} cold email openers for outreach. "
+        f"Write exactly {num_openers} {length.lower()} {style.lower()} cold email openers, numbered 1 to {num_openers}, for a sales outreach email. "
         f"Use this lead context: {lead}."
     )
     if company:
@@ -28,8 +28,10 @@ def build_prompt(lead, company, job_title, style, length, num_openers):
         prompt += f" The job title is {job_title}."
     return prompt
 
-def parse_openers(text: str) -> list:
-    return [line.strip() for line in text.split("\n") if line.strip()]
+def parse_openers(text: str, expected_count: int = 5) -> list:
+    candidates = re.split(r'\n\d+[.)\s-]*', text)
+    candidates = [line.strip() for line in candidates if len(line.strip()) > 10]
+    return candidates[:expected_count]
 
 def save_to_csv(path, headers, row):
     file_exists = os.path.exists(path)
@@ -62,7 +64,7 @@ def render_copy_button(opener_text: str, idx: int):
 if "theme" not in st.session_state:
     st.session_state["theme"] = "Dark"
 
-selected_theme = st.selectbox("🌓 Select Theme", ["Dark", "Light"], index=0 if st.session_state["theme"] == "Dark" else 1)
+selected_theme = st.selectbox("🌃 Select Theme", ["Dark", "Light"], index=0 if st.session_state["theme"] == "Dark" else 1)
 st.session_state["theme"] = selected_theme
 
 if selected_theme == "Light":
@@ -88,8 +90,8 @@ notes = st.text_input("📝 Internal Notes (optional):")
 tag = st.selectbox("🏷️ Tag this lead", ["None", "Hot", "Follow-up", "Cold", "Replied"], index=0)
 style = st.selectbox("✍️ Choose a tone/style: ", ["Friendly", "Professional", "Funny", "Bold", "Casual"])
 length = st.radio("📏 Select opener length:", ["Short", "Medium", "Long"], index=1)
-num_openers = st.slider("📝 Number of openers to generate:", min_value=1, max_value=5, value=3)
-view_mode = st.radio("📐 Display Mode", ["List View", "Card View"], index=1)
+num_openers = st.slider("📄 Number of openers to generate:", min_value=1, max_value=5, value=3)
+view_mode = st.radio("📀 Display Mode", ["List View", "Card View"], index=1)
 
 lead = clean_lead(raw_lead)
 
@@ -123,7 +125,7 @@ else:
 
                     result = response.choices[0].message.content.strip()
                     duration = round(time.time() - start_time, 2)
-                    openers = parse_openers(result)
+                    openers = parse_openers(result, num_openers)
                     st.session_state["openers"] = openers
                     combined_output = "\n\n".join(openers)
                     favorites = []
@@ -144,12 +146,12 @@ else:
                         with cols[0]:
                             render_copy_button(opener, idx+1)
                         with cols[1]:
-                            st.markdown(f"[📨 Gmail](https://mail.google.com/mail/?view=cm&fs=1&to=&su=Quick intro&body={urllib.parse.quote(opener)})", unsafe_allow_html=True)
+                            st.markdown(f"[📧 Gmail](https://mail.google.com/mail/?view=cm&fs=1&to=&su=Quick intro&body={urllib.parse.quote(opener)})", unsafe_allow_html=True)
                         with cols[2]:
                             if st.button(f"⭐ Save Opener {idx+1}", key=f"fav_{idx+1}"):
                                 favorites.append(opener)
 
-                    st.download_button("📥 Copy All Openers", combined_output, file_name="all_openers.txt")
+                    st.text_area("📋 All Openers (copy manually if needed):", combined_output, height=150)
 
                     padded_favorites = favorites + [''] * (num_openers - len(favorites))
                     log_row = [datetime.now().isoformat(), lead, company, job_title, style, length, notes, tag, *openers[:5], *padded_favorites[:5]]
