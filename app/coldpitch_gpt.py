@@ -59,7 +59,16 @@ def render_email_buttons(opener_text):
     encoded = urllib.parse.quote(opener_text)
     gmail_link = f"https://mail.google.com/mail/?view=cm&fs=1&to=&su=Quick intro&body={encoded}"
     outlook_link = f"https://outlook.office.com/mail/deeplink/compose?body={encoded}&subject=Quick%20intro"
-    st.markdown(f"[📧 Gmail]({gmail_link}) &nbsp;&nbsp; | &nbsp;&nbsp; [📨 Outlook]({outlook_link})", unsafe_allow_html=True)
+    st.markdown(f"""
+        <div style='margin-top:4px;margin-bottom:8px;'>
+            <a href='{gmail_link}' target='_blank' style='text-decoration:none;'>
+                <button style='margin-right:10px;'>📧 Gmail</button>
+            </a>
+            <a href='{outlook_link}' target='_blank' style='text-decoration:none;'>
+                <button>📨 Outlook</button>
+            </a>
+        </div>
+    """, unsafe_allow_html=True)
 
 # ------------------------
 # Theme toggle (light/dark)
