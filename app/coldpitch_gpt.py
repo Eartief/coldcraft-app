@@ -39,6 +39,23 @@ def save_to_csv(path, headers, row):
             writer.writerow(headers)
         writer.writerow(row)
 
+def render_copy_button(opener_text: str, idx: int):
+    btn_id = f"copy_btn_{idx}"
+    st.markdown(f"""
+    <button id="{btn_id}" style="margin-top:4px;margin-bottom:8px">📋 Copy to Clipboard</button>
+    <script>
+    const btn = document.getElementById('{btn_id}');
+    if (btn) {{
+      btn.onclick = () => {{
+        navigator.clipboard.writeText(`{opener_text}`).then(() => {{
+          btn.innerText = '✅ Copied!';
+          setTimeout(() => btn.innerText = '📋 Copy to Clipboard', 2000);
+        }});
+      }}
+    }}
+    </script>
+    """, unsafe_allow_html=True)
+
 # ------------------------
 # Theme toggle (light/dark)
 # ------------------------
@@ -107,6 +124,7 @@ else:
                     result = response.choices[0].message.content.strip()
                     duration = round(time.time() - start_time, 2)
                     openers = parse_openers(result)
+                    st.session_state["openers"] = openers
                     combined_output = "\n\n".join(openers)
                     favorites = []
 
@@ -124,7 +142,7 @@ else:
 
                         cols = st.columns([1, 1, 2])
                         with cols[0]:
-                            st.download_button("📋 Copy", opener, f"opener_{idx+1}.txt", key=f"copy_{idx+1}")
+                            render_copy_button(opener, idx+1)
                         with cols[1]:
                             st.markdown(f"[📨 Gmail](https://mail.google.com/mail/?view=cm&fs=1&to=&su=Quick intro&body={urllib.parse.quote(opener)})", unsafe_allow_html=True)
                         with cols[2]:
@@ -145,46 +163,3 @@ else:
                     st.error(f"Failed to generate message: {str(e)}")
                 finally:
                     st.session_state.generate_disabled = False
-
-# ------------------------
-# History Log View
-# ------------------------
-if os.path.exists("lead_log.csv"):
-    st.markdown("---")
-    st.subheader("📊 Lead History")
-    df = pd.read_csv("lead_log.csv")
-
-    with st.expander("🔍 Filter History"):
-        tone_filter = st.multiselect("Tone", df["style"].unique(), default=list(df["style"].unique()))
-        length_filter = st.multiselect("Length", df["length"].unique(), default=list(df["length"].unique()))
-        tag_filter = st.multiselect("Tag", df["tag"].dropna().unique(), default=list(df["tag"].dropna().unique()))
-        keyword = st.text_input("Search keyword in lead, notes, or openers:")
-
-    filtered_df = df[df["style"].isin(tone_filter) & df["length"].isin(length_filter) & df["tag"].isin(tag_filter)]
-    if keyword:
-        keyword = keyword.lower()
-        filtered_df = filtered_df[filtered_df.apply(lambda row: keyword in str(row).lower(), axis=1)]
-
-    st.dataframe(filtered_df)
-    csv_buffer = StringIO()
-    filtered_df.to_csv(csv_buffer, index=False)
-    st.download_button("📥 Download Filtered History", csv_buffer.getvalue(), "filtered_leads.csv")
-
-    # ------------------------
-    # Analytics Section
-    # ------------------------
-    st.markdown("---")
-    st.subheader("📈 Insights & Stats")
-
-    stats1, stats2 = st.columns(2)
-    with stats1:
-        st.metric("Total Leads", len(df))
-        st.metric("Total Favorites", df[[col for col in df.columns if col.startswith("favorite_")]].notna().sum().sum())
-    with stats2:
-        st.bar_chart(df["style"].value_counts())
-        st.bar_chart(df[[col for col in df.columns if col.startswith("favorite_")]].notna().sum(axis=1))
-
-    tag_dist = df["tag"].value_counts()
-    if not tag_dist.empty:
-        st.subheader("🎯 Tag Distribution")
-        st.dataframe(tag_dist.reset_index().rename(columns={"index": "Tag", "tag": "Count"}))
