@@ -41,9 +41,8 @@ def save_to_csv(path, headers, row):
         writer.writerow(row)
 
 def reset_form():
-    for key in st.session_state.keys():
-        del st.session_state[key]
-    st.experimental_rerun()
+    st.session_state.clear()
+    st.rerun()
 
 # ------------------------
 # UI Inputs
