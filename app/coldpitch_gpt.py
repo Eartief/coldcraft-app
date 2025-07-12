@@ -1,144 +1,105 @@
+# file: app/coldpitch_gpt.py
+
 import streamlit as st
 import openai
 import os
-import re
-import time
-import csv
 import pandas as pd
-from datetime import datetime
 from io import StringIO
-import urllib.parse
 
-st.set_page_config(page_title='ColdCraft', layout='centered')
-st.title('🧊 ColdCraft - Cold Email Generator')
-st.write('Paste your lead info below and get a personalized cold email opener.')
+# --- Config ---
+openai.api_key = os.getenv("OPENAI_API_KEY")
+st.set_page_config(page_title="ColdPitchGPT", layout="centered")
 
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# --- App Title ---
+st.title("🚀 ColdPitchGPT: AI-Personalized Cold Email Generator")
+st.markdown("Generate hyper-personalized email openers based on LinkedIn info.")
 
-raw_lead = st.text_area("🔍 Paste LinkedIn bio, job post, or context about your lead:", height=200)
-company = st.text_input("🏢 Company Name (optional):")
-job_title = st.text_input("💼 Job Title (optional):")
-notes = st.text_input("📝 Internal Notes (optional):")
-tag = st.selectbox("🏷️ Tag this lead", ["None", "Hot", "Follow-up", "Cold", "Replied"], index=0)
-style = st.selectbox("✍️ Choose a tone/style: ", ["Friendly", "Professional", "Funny", "Bold", "Casual"])
-length = st.radio("📏 Select opener length:", ["Short", "Medium", "Long"], index=1)
-view_mode = st.radio("📐 Display Mode", ["List View", "Card View"], index=1)
+# --- Input Type Selection ---
+input_mode = st.radio("Select Input Mode", ["Manual Entry", "CSV Upload"])
 
-reset_btn = st.button("🔄 Reset Form")
+# --- Prompt Builder ---
+def build_prompt(name, title, company, tone, notes):
+    return f"""
+Write a short, personalized cold email opener (1-2 sentences) for a prospect.
 
-if reset_btn:
-    st.experimental_rerun()
+Name: {name}
+Title: {title}
+Company: {company}
+Tone: {tone}
+Extra Info: {notes if notes else 'N/A'}
 
-lead = re.sub(r'\s+', ' ', raw_lead).strip().lower()
+Make it personalized, relevant, and engaging. Avoid cliches.
+"""
 
-if len(lead) > 500:
-    st.warning("⚠️ Lead info is too long. Please keep it under 500 characters.")
-else:
-    if 'generate_disabled' not in st.session_state:
-        st.session_state.generate_disabled = False
+# --- GPT Call Wrapper ---
+def generate_email(name, title, company, tone, notes):
+    prompt = build_prompt(name, title, company, tone, notes)
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a B2B outbound sales expert."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=150
+        )
+        return response["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        return f"Error: {e}"
 
-    generate_btn = st.button("✉️ Generate Cold Email", disabled=st.session_state.generate_disabled, key="generate_btn")
+# --- Manual Entry Form ---
+if input_mode == "Manual Entry":
+    with st.form("pitch_form"):
+        name = st.text_input("Prospect Name")
+        title = st.text_input("Job Title")
+        company = st.text_input("Company")
+        custom_notes = st.text_area("Custom Notes (optional)", placeholder="e.g. saw their talk at Web Summit...")
+        tone = st.selectbox("Tone of Email", ["Friendly", "Direct", "Playful"])
+        submitted = st.form_submit_button("Generate Cold Email")
 
-    if generate_btn:
-        if not lead:
-            st.warning("Please enter some lead info first.")
+    if submitted:
+        if not name or not title or not company:
+            st.error("Please fill in name, title, and company.")
         else:
-            st.session_state.generate_disabled = True
-            with st.spinner("Generating..."):
-                start_time = time.time()
-                try:
-                    system_prompt = (
-                        "You are a world-class B2B cold email copywriter. Only return the email content itself. "
-                        "Do not preface with comments like 'Certainly!' or 'Here are...'"
-                    )
+            with st.spinner("Generating cold email..."):
+                message = generate_email(name, title, company, tone, custom_notes)
+                st.success("Cold email generated!")
+                st.text_area("Generated Email Opener:", value=message, height=150)
 
-                    user_prompt = (
-                        f"Write 3 {length.lower()} {style.lower()} cold email openers for outreach. "
-                        f"Use this lead context: {lead}."
-                    )
-                    if company:
-                        user_prompt += f" The company name is {company}."
-                    if job_title:
-                        user_prompt += f" The job title is {job_title}."
+# --- CSV Upload Mode ---
+else:
+    st.info("Upload a CSV with columns: name, title, company, notes (optional)")
+    uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
 
-                    response = openai.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_prompt}
-                        ],
-                        max_tokens=300,
-                        temperature=0.7
-                    )
+    if uploaded_file:
+        try:
+            df = pd.read_csv(uploaded_file)
+            required_cols = {"name", "title", "company"}
+            if not required_cols.issubset(df.columns):
+                st.error("CSV must contain columns: name, title, company")
+            else:
+                st.success(f"{len(df)} rows loaded from CSV.")
+                generate_bulk = st.button("Generate Email Variants for All Rows")
+                if generate_bulk:
+                    results = []
+                    with st.spinner("Generating multiple variants for all rows..."):
+                        for i, row in df.iterrows():
+                            friendly = generate_email(row['name'], row['title'], row['company'], "Friendly", row.get('notes', ''))
+                            direct = generate_email(row['name'], row['title'], row['company'], "Direct", row.get('notes', ''))
+                            playful = generate_email(row['name'], row['title'], row['company'], "Playful", row.get('notes', ''))
 
-                    result = response.choices[0].message.content.strip()
-                    duration = round(time.time() - start_time, 2)
+                            results.append({
+                                **row,
+                                "cold_email_friendly": friendly,
+                                "cold_email_direct": direct,
+                                "cold_email_playful": playful
+                            })
 
-                    st.success("✅ Generated cold openers:")
-
-                    openers = []
-                    for line in result.split("\n"):
-                        line = line.strip()
-                        if re.match(r'^(\d+\.|[-*])\s', line):
-                            openers.append(re.sub(r'^(\d+\.|[-*])\s*', '', line))
-
-                    combined_output = "\n\n".join(openers)
-                    favorites = []
-
-                    for idx, opener in enumerate(openers):
-                        with st.container():
-                            st.markdown(f"### ✉️ Opener {idx+1}")
-                            if view_mode == "Card View":
-                                st.markdown(f"<div style='border-left: 4px solid #ccc; padding-left: 1rem; margin-bottom: 1rem;'>{opener}</div>", unsafe_allow_html=True)
-                            else:
-                                st.markdown(opener)
-
-                            st.download_button("📋 Copy", opener, f"opener_{idx+1}.txt", key=f"copy_{idx+1}")
-
-                            gmail_link = f"https://mail.google.com/mail/?view=cm&fs=1&to=&su=Quick intro&body={urllib.parse.quote(opener)}"
-                            st.markdown(f"[📨 Send with Gmail]({gmail_link})", unsafe_allow_html=True)
-
-                            if st.button(f"⭐ Save Opener {idx+1} as Favorite", key=f"fav_{idx+1}"):
-                                favorites.append(opener)
-
-                    st.download_button("📥 Copy All Openers", combined_output, file_name="all_openers.txt")
-
-                    log_row = [datetime.now().isoformat(), lead, company, job_title, style, length, notes, tag, *openers, *favorites]
-                    log_path = "lead_log.csv"
-                    header = ["timestamp", "lead", "company", "job_title", "style", "length", "notes", "tag", "opener_1", "opener_2", "opener_3", "favorite_1", "favorite_2", "favorite_3"]
-                    file_exists = os.path.exists(log_path)
-                    with open(log_path, mode='a', newline='', encoding='utf-8') as file:
-                        writer = csv.writer(file)
-                        if not file_exists:
-                            writer.writerow(header)
-                        writer.writerow(log_row)
-
-                    st.caption(f"⏱️ Generated in {duration} seconds | 📏 {len(result)} characters")
-
-                except Exception as e:
-                    st.error(f"Failed to generate message: {str(e)}")
-                finally:
-                    st.session_state.generate_disabled = False
-
-if os.path.exists("lead_log.csv"):
-    st.markdown("---")
-    st.subheader("📊 Lead History")
-
-    df = pd.read_csv("lead_log.csv")
-
-    with st.expander("🔍 Filter History"):
-        tone_filter = st.multiselect("Tone", df["style"].unique(), default=list(df["style"].unique()))
-        length_filter = st.multiselect("Length", df["length"].unique(), default=list(df["length"].unique()))
-        tag_filter = st.multiselect("Tag", df["tag"].dropna().unique(), default=list(df["tag"].dropna().unique()))
-        keyword = st.text_input("Search keyword in lead, notes, or openers:")
-
-    filtered_df = df[df["style"].isin(tone_filter) & df["length"].isin(length_filter) & df["tag"].isin(tag_filter)]
-    if keyword:
-        keyword = keyword.lower()
-        filtered_df = filtered_df[filtered_df.apply(lambda row: keyword in str(row).lower(), axis=1)]
-
-    st.dataframe(filtered_df)
-
-    csv_buffer = StringIO()
-    filtered_df.to_csv(csv_buffer, index=False)
-    st.download_button("📥 Download Filtered History", csv_buffer.getvalue(), "filtered_leads.csv")
+                    result_df = pd.DataFrame(results)
+                    st.success("All email variants generated!")
+                    st.dataframe(result_df)
+                    csv_download = result_df.to_csv(index=False)
+                    st.download_button("Download Results as CSV", csv_download, "cold_email_variants.csv", "text/csv")
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
