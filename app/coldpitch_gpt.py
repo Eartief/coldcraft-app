@@ -5,6 +5,18 @@ import re
 import time
 import csv
 from datetime import datetime
+from supabase import create_client, Client
+
+SUPABASE_URL = st.secrets["supabase"]["url"]
+SUPABASE_KEY = st.secrets["supabase"]["anon_key"]
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Test it by listing tables (optional)
+try:
+    table_list = supabase.table("leads").select("*").limit(1).execute()
+    st.success("✅ Supabase connection successful!")
+except Exception as e:
+    st.error(f"❌ Supabase error: {e}")
 
 st.set_page_config(page_title='ColdCraft', layout='centered')
 
