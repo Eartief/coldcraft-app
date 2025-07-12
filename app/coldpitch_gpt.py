@@ -20,7 +20,7 @@ if st.button("✉️ Generate Cold Email"):
     else:
         try:
             response = openai.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "You are an expert cold outreach copywriter."},
                     {"role": "user", "content": f"Write a short, friendly cold email opener based on this lead: {lead}"}
