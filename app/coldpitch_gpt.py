@@ -29,8 +29,8 @@ def build_prompt(lead, company, job_title, style, length):
     return prompt
 
 def parse_openers(text: str) -> list:
-    lines = text.split("\n")
-    return [re.sub(r'^(\d+\.|[-*])\s*', '', l.strip()) for l in lines if re.match(r'^(\d+\.|[-*])\s', l.strip())]
+    candidates = [line.strip() for line in text.split("\n") if line.strip()]
+    return candidates[:3]
 
 def save_to_csv(path, headers, row):
     file_exists = os.path.exists(path)
@@ -39,10 +39,6 @@ def save_to_csv(path, headers, row):
         if not file_exists:
             writer.writerow(headers)
         writer.writerow(row)
-
-def reset_form():
-    st.session_state.clear()
-    st.rerun()
 
 # ------------------------
 # UI Inputs
@@ -60,9 +56,6 @@ tag = st.selectbox("🏷️ Tag this lead", ["None", "Hot", "Follow-up", "Cold",
 style = st.selectbox("✍️ Choose a tone/style: ", ["Friendly", "Professional", "Funny", "Bold", "Casual"])
 length = st.radio("📏 Select opener length:", ["Short", "Medium", "Long"], index=1)
 view_mode = st.radio("📐 Display Mode", ["List View", "Card View"], index=1)
-
-if st.button("🔄 Reset Form"):
-    reset_form()
 
 lead = clean_lead(raw_lead)
 
