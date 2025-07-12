@@ -21,9 +21,9 @@ def build_prompt(lead, company, job_title, style, length, num_openers):
         f"Use this lead context: {lead}."
     )
     if company:
-        prompt += f" The company name is {company}."
+        prompt += f" The lead works at {company}."
     if job_title:
-        prompt += f" The job title is {job_title}."
+        prompt += f" Their job title is {job_title}."
     return prompt
 
 def parse_openers(text: str, expected_count: int = 5) -> list:
@@ -60,6 +60,8 @@ def render_copy_button(opener_text: str, idx: int):
 # ------------------------
 if "theme" not in st.session_state:
     st.session_state["theme"] = "Dark"
+if "favorites" not in st.session_state:
+    st.session_state.favorites = []
 
 selected_theme = st.selectbox("🌃 Select Theme", ["Dark", "Light"], index=0 if st.session_state["theme"] == "Dark" else 1)
 st.session_state["theme"] = selected_theme
@@ -67,15 +69,15 @@ st.session_state["theme"] = selected_theme
 if selected_theme == "Light":
     st.markdown("""
         <style>
-            html, body, .stApp { background-color: #f8f9fa !important; color: #111 !important; }
-            textarea, input, select { background-color: #fff !important; color: #000 !important; }
+            html, body, .stApp {{ background-color: #f8f9fa !important; color: #111 !important; }}
+            textarea, input, select {{ background-color: #fff !important; color: #000 !important; }}
         </style>
     """, unsafe_allow_html=True)
 elif selected_theme == "Dark":
     st.markdown("""
         <style>
-            html, body, .stApp { background-color: #0e1117 !important; color: #fff !important; }
-            textarea, input, select { background-color: #1e1e1e !important; color: #fff !important; }
+            html, body, .stApp {{ background-color: #0e1117 !important; color: #fff !important; }}
+            textarea, input, select {{ background-color: #1e1e1e !important; color: #fff !important; }}
         </style>
     """, unsafe_allow_html=True)
 
@@ -88,9 +90,9 @@ st.write('Paste your lead info below and get a personalized cold email opener.')
 openai.api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
 
 raw_lead = st.text_area("🔍 Paste LinkedIn bio, job post, or context about your lead:", height=200)
-company = st.text_input("🏢 Company Name (optional):")
-job_title = st.text_input("💼 Job Title (optional):")
-notes = st.text_input("📝 Internal Notes (optional):")
+company = st.text_input("🏢 Lead's Company (where they work):")
+job_title = st.text_input("💼 Lead's Job Title:")
+notes = st.text_input("📝 Your Private Notes (for internal use only):")
 tag = st.selectbox("🏷️ Tag this lead", ["None", "Hot", "Follow-up", "Cold", "Replied"], index=0)
 style = st.selectbox("✍️ Choose a tone/style: ", ["Friendly", "Professional", "Funny", "Bold", "Casual"])
 length = st.radio("📏 Select opener length:", ["Short", "Medium", "Long"], index=1)
@@ -125,10 +127,10 @@ if st.button("✉️ Generate Cold Email"):
                 duration = round(time.time() - start_time, 2)
                 openers = parse_openers(result, num_openers)
                 st.session_state.openers = openers
+                st.session_state.favorites = []
 
                 st.success("✅ Generated cold openers:")
                 combined_output = "\n\n".join(openers)
-                favorites = []
 
                 for idx, opener in enumerate(openers):
                     st.markdown(f"### ✉️ Opener {idx+1}")
@@ -148,11 +150,12 @@ if st.button("✉️ Generate Cold Email"):
                         st.markdown(f"[📧 Gmail](https://mail.google.com/mail/?view=cm&fs=1&to=&su=Quick intro&body={urllib.parse.quote(opener)})", unsafe_allow_html=True)
                     with cols[2]:
                         if st.button(f"⭐ Save Opener {idx+1}", key=f"fav_{idx+1}"):
-                            favorites.append(opener)
+                            if opener not in st.session_state.favorites:
+                                st.session_state.favorites.append(opener)
 
                 st.text_area("📋 All Openers (copy manually if needed):", combined_output, height=150)
 
-                padded_favorites = favorites + [''] * (num_openers - len(favorites))
+                padded_favorites = st.session_state.favorites + [''] * (num_openers - len(st.session_state.favorites))
                 log_row = [datetime.now().isoformat(), lead, company, job_title, style, length, notes, tag, *openers[:5], *padded_favorites[:5]]
                 headers = ["timestamp", "lead", "company", "job_title", "style", "length", "notes", "tag"] + \
                           [f"opener_{i+1}" for i in range(5)] + [f"favorite_{i+1}" for i in range(5)]
