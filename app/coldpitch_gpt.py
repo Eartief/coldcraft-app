@@ -18,6 +18,30 @@ def get_supabase() -> Client:
 
 supabase = get_supabase()
 
+# Handle email confirmation redirect
+params = st.experimental_get_query_params()
+if 'access_token' in params and 'refresh_token' in params:
+    try:
+        supabase.auth.set_session({
+            'access_token': params['access_token'][0],
+            'refresh_token': params['refresh_token'][0]
+        })
+        session = supabase.auth.get_session()
+        if session and session.user:
+            st.session_state['authenticated'] = True
+            st.session_state['user_email'] = session.user.email
+            st.session_state['access_token'] = params['access_token'][0]
+            st.session_state['refresh_token'] = params['refresh_token'][0]
+            st.session_state['active_tab'] = 'Generator'
+            # Clean URL
+            components.html(
+                "<script>window.history.replaceState({}, document.title, window.location.pathname);</script>",
+                height=0
+            )
+            st.success("✅ Email confirmed and logged in!")
+    except Exception as e:
+        st.error(f"Error confirming email: {e}")
+
 # Restore session tokens
 if st.session_state.get("access_token") and st.session_state.get("refresh_token"):
     try:
@@ -97,10 +121,11 @@ if st.session_state["active_tab"] == "Login":
                 if st.form_submit_button("Login"):
                     try:
                         resp = supabase.auth.sign_in_with_password({"email": email, "password": pwd})
-                        if not getattr(resp, 'session', None):
+                        session = getattr(resp, 'session', None)
+                        if not session:
                             st.error("Invalid credentials")
                         else:
-                            s = resp.session
+                            s = session
                             st.session_state.update({
                                 "access_token": s.access_token,
                                 "refresh_token": s.refresh_token,
@@ -126,8 +151,9 @@ if st.session_state["active_tab"] == "Login":
                     else:
                         try:
                             resp = supabase.auth.sign_up({"email": new_email, "password": new_pwd})
-                            if getattr(resp, 'session', None):
-                                s = resp.session
+                            session = getattr(resp, 'session', None)
+                            if session:
+                                s = session
                                 st.session_state.update({
                                     "access_token": s.access_token,
                                     "refresh_token": s.refresh_token,
