@@ -90,6 +90,12 @@ textarea, input, select, button { background-color: #fff; color: #000; }
   .block-container {
     padding: 1rem !important;
   }
+  h1, h2, h3 {
+    font-size: 1.25rem;
+  }
+  .stButton > button {
+    width: 100%;
+  }
 }
 </style>
 """,
@@ -195,7 +201,7 @@ if st.session_state["active_tab"] == "Generator":
         components.html("<script>window.scrollTo({top:document.body.scrollHeight});</script>", height=0)
 
 # Saved Leads tab
-if st.session_state["active_tab"] == "Saved Leads"]:
+if st.session_state["active_tab"] == "Saved Leads":
     st.title("📁 Saved Leads")
     try: res = supabase.table("coldcraft").select("*").eq("user_email",st.session_state["user_email"]).order("timestamp", desc=True).execute(); leads=res.data or []
     except Exception as e: st.error(f"Load failed: {e}"); leads=[]
