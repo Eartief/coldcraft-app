@@ -1,3 +1,31 @@
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+if "guest" not in st.session_state:
+    st.session_state["guest"] = False
+
+# --- LOGIN UI ---
+if not st.session_state["authenticated"] and not st.session_state["guest"]:
+    st.markdown("<h1 style='text-align: center;'>🔐 Welcome to ColdCraft</h1>", unsafe_allow_html=True)
+    st.markdown("#### Please log in or continue as guest to access the tool.")
+    
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔑 Log In"):
+            if username == "admin" and password == "letmein":  # replace with env vars or Supabase later
+                st.session_state["authenticated"] = True
+                st.rerun()
+            else:
+                st.error("Invalid credentials")
+
+    with col2:
+        if st.button("🚪 Continue as Guest"):
+            st.session_state["guest"] = True
+            st.rerun()
+    st.stop()
+
 # app/coldpitch_gpt.py
 
 import streamlit as st
