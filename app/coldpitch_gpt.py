@@ -10,7 +10,6 @@ import streamlit.components.v1 as components
 # Configuration
 SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["anon_key"]
-# URL where users should be redirected after confirming email
 CONFIRMATION_REDIRECT_URL = st.secrets.get("confirmation_redirect_url", os.getenv("CONFIRMATION_REDIRECT_URL"))
 openai.api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
 
@@ -135,19 +134,19 @@ if st.session_state["active_tab"] == "Login":
                         st.error("❌ Passwords do not match.")
                     else:
                         try:
-                            # Include redirect URL so confirmation link returns to app
                             resp = supabase.auth.sign_up(
-                                {"email": new_email, "password": new_pwd},
-                                {"redirect_to": CONFIRMATION_REDIRECT_URL}
+                                email=new_email,
+                                password=new_pwd,
+                                redirect_to=CONFIRMATION_REDIRECT_URL
                             )
-                            user = getattr(resp, 'user', None)
                             session = getattr(resp, 'session', None)
+                            user = getattr(resp, 'user', None)
                             if session and user:
                                 st.session_state["access_token"] = session.access_token
                                 st.session_state["refresh_token"] = session.refresh_token
                                 st.session_state["authenticated"] = True
                                 st.session_state["user_email"] = user.email
-                                st.session_state["active_tab"] = "Generator"
+                                st.session-state["active_tab"] = "Generator"
                                 st.success("✅ Account created and logged in!")
                                 st.rerun()
                             else:
@@ -228,13 +227,3 @@ if st.session_state["active_tab"] == "Saved Leads":
                 for idx, op in enumerate(lead.get("openers", []), start=1):
                     st.markdown(f"**Opener {idx}:** {op}")
                 if st.button("Delete Lead", key=f"del_{lead['id']}"):
-                    try:
-                        supabase.table("coldcraft").delete().eq("id", lead["id"]).execute()
-                        st.success("Lead deleted.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Delete failed: {e}")
-
-# Auto-scroll
-if "openers" in st.session_state:
-    components.html("<script>window.scrollTo({top:document.body.scrollHeight});</script>", height=0)
