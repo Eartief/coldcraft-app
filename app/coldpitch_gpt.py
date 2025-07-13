@@ -33,7 +33,6 @@ if 'access_token' in params and 'refresh_token' in params:
             st.session_state['access_token'] = params['access_token'][0]
             st.session_state['refresh_token'] = params['refresh_token'][0]
             st.session_state['active_tab'] = 'Generator'
-            # Clean URL bar
             components.html(
                 "<script>window.history.replaceState({}, document.title, window.location.pathname);</script>",
                 height=0
@@ -52,7 +51,6 @@ if st.session_state.get("access_token") and st.session_state.get("refresh_token"
     except Exception:
         pass
 
-# Check existing session
 session_resp = supabase.auth.get_session()
 if session_resp and session_resp.user:
     st.session_state["authenticated"] = True
@@ -62,7 +60,6 @@ else:
     st.session_state.setdefault("user_email", "")
     st.session_state.setdefault("guest", False)
 
-# Default UI state
 st.session_state.setdefault("active_tab", "Login")
 st.session_state.setdefault("saved_num_openers", 3)
 if st.session_state.get("reset_generator_form"):
@@ -78,29 +75,42 @@ st.markdown(
     """
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-html, body, .stApp { background-color: #f8f9fa; color: #111; }
-textarea, input, select, button { background-color: #fff; color: #000; }
+html, body, .stApp {
+  background-color: #ffffff !important;
+  color: #111 !important;
+}
 
-/* Mobile responsiveness */
+input, textarea, select, button {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+
+.stTextInput > label, .stPassword > label, .stSelectbox > label, .stRadio > label {
+  color: #111 !important;
+  font-weight: bold;
+}
+
+/* Mobile */
 @media (max-width: 600px) {
   input, textarea, select, button {
     width: 100% !important;
     box-sizing: border-box;
+    font-size: 1rem;
   }
   .block-container {
     padding: 1rem !important;
   }
-  h1, h2, h3 {
-    font-size: 1.25rem;
-  }
   .stButton > button {
-    width: 100%;
+    width: 100% !important;
   }
 }
 </style>
 """,
     unsafe_allow_html=True
 )
+
 st.image("https://i.imgur.com/fX4tDCb.png", width=200)
 
 # Sidebar menu
@@ -220,5 +230,4 @@ if st.session_state["active_tab"] == "Saved Leads":
                 for i, op in enumerate(lead.get("openers", []), 1): st.markdown(f"**Opener {i}:** {op}")
                 if st.button("Delete", key=f"del{lead['id']}"): supabase.table("coldcraft").delete().eq("id",lead['id']).execute(); st.success("Deleted"); st.rerun()
 
-# Auto-scroll
 if "openers" in st.session_state: components.html("<script>window.scrollTo({top:document.body.scrollHeight});</script>", height=0)
