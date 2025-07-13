@@ -9,22 +9,19 @@ import csv
 from datetime import datetime
 from supabase import create_client, Client
 
-# ------------------------ Setup Supabase ------------------------
 SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["anon_key"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ------------------------ Streamlit Page Setup ------------------------
 st.set_page_config(page_title='ColdCraft', layout='centered')
 st.info("🔌 Testing Supabase connection...")
 
 try:
-    supabase.table("leads").select("*").limit(1).execute()
+    supabase.table("coldcraft").select("*").limit(1).execute()
     st.success("✅ Supabase connection successful!")
 except Exception as e:
     st.error(f"❌ Supabase error: {e}")
 
-# ------------------------ Helpers ------------------------
 def clean_lead(text: str) -> str:
     return re.sub(r'\s+', ' ', text).strip().lower()
 
@@ -43,7 +40,6 @@ def parse_openers(text: str, expected_count: int = 5) -> list:
     matches = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)', text, re.DOTALL)
     return [op.strip() for op in matches][:expected_count]
 
-# ------------------------ Theme ------------------------
 if "theme" not in st.session_state:
     st.session_state["theme"] = "Dark"
 
@@ -55,7 +51,6 @@ if selected_theme == "Light":
 else:
     st.markdown("""<style> html, body, .stApp { background-color: #0e1117; color: #fff; } textarea, input, select { background-color: #1e1e1e; color: #fff; } </style>""", unsafe_allow_html=True)
 
-# ------------------------ UI ------------------------
 st.title("🧊 ColdCraft - Cold Email Generator")
 st.write("Paste your lead info below and get a personalized cold email opener.")
 
@@ -73,7 +68,6 @@ view_mode = st.radio("📀 Display Mode", ["List View", "Card View"], index=1)
 
 lead = clean_lead(raw_lead)
 
-# ------------------------ Generate ------------------------
 if st.button("✉️ Generate Cold Email"):
     if not lead:
         st.warning("Please enter some lead info first.")
@@ -111,9 +105,8 @@ if st.button("✉️ Generate Cold Email"):
 
                 st.text_area("📋 All Openers (copy manually if needed):", combined_output, height=150)
 
-                # Save to Supabase
                 try:
-                    supabase.table("leads").insert({
+                    supabase.table("coldcraft").insert({
                         "timestamp": datetime.now().isoformat(),
                         "lead": lead,
                         "company": company,
