@@ -1,23 +1,100 @@
 # app/coldpitch_gpt.py
 
+import streamlit as st
+import openai
+import os
+import re
+import time
+from datetime import datetime
+from supabase import create_client, Client
+from gotrue.errors import AuthApiError
+
+# ---------- CONFIG ----------
+SUPABASE_URL = st.secrets["supabase"]["url"]
+SUPABASE_KEY = st.secrets["supabase"]["anon_key"]
+openai.api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
+
+@st.cache_resource
+def get_supabase():
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+supabase: Client = get_supabase()
+
+if "initialized" not in st.session_state:
+    st.set_page_config(page_title='ColdCraft', layout='centered')
+    st.markdown("""
+    <style>
+    html, body, .stApp {
+        background-color: #f8f9fa;
+        color: #111;
+    }
+    textarea, input, select {
+        background-color: #fff;
+        color: #000;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    st.image("https://i.imgur.com/fX4tDCb.png", width=200)
+    st.session_state.initialized = True
+
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+if "guest" not in st.session_state:
+    st.session_state["guest"] = False
+if "user_email" not in st.session_state:
+    st.session_state["user_email"] = ""
+if "active_tab" not in st.session_state:
+    st.session_state["active_tab"] = "Generator"
+
+# ---------- SAVED LEADS UI ----------
+if st.session_state["active_tab"] == "Saved Leads":
+    st.title("📁 Saved Leads")
+    if st.button("⬅️ Back to Generator"):
+        st.session_state["active_tab"] = "Generator"
+        st.rerun()
+
+    user_email = st.session_state.get("user_email", "")
+    try:
+        with st.spinner("Loading your saved leads..."):
+            data = supabase.table("coldcraft").select("*").eq("user_email", user_email).order("timestamp", desc=True).execute()
+            leads = data.data
+
+        if not leads:
+            st.info("No leads saved yet.")
+        else:
+            for lead in leads:
+                with st.expander(f"{lead.get('lead')[:40]}..."):
+                    st.markdown(f"**Company**: {lead.get('company')}")
+                    st.markdown(f"**Job Title**: {lead.get('job_title')}")
+                    st.markdown(f"**Style**: {lead.get('style')} | **Length**: {lead.get('length')}")
+                    st.markdown(f"**Notes**: {lead.get('notes')}")
+                    st.markdown(f"**Tag**: {lead.get('tag')}")
+                    for idx, opener in enumerate(lead.get("openers", [])):
+                        st.markdown(f"**Opener {idx+1}:** {opener}")
+    except Exception as e:
+        st.error(f"❌ Failed to load saved leads: {e}")
+    st.stop()
+
 # ---------- GENERATOR UI ----------
 if st.session_state["active_tab"] == "Generator":
     st.title("🧊 ColdCraft - Cold Email Generator")
     st.write("Paste your lead info below and get a personalized cold email opener.")
 
-    raw_lead = st.text_area("🔍 Paste LinkedIn bio, job post, or context about your lead:", height=200)
-    company = st.text_input("🏢 Lead's Company:")
-    job_title = st.text_input("💼 Lead's Job Title:")
-    notes = st.text_input("📝 Private Notes:")
-    tag = st.selectbox("🏷️ Tag this lead", ["None", "Hot", "Follow-up", "Cold", "Replied"], index=0)
-    style = st.selectbox("✍️ Tone/Style", ["Friendly", "Professional", "Funny", "Bold", "Casual"])
-    length = st.radio("📏 Opener length:", ["Short", "Medium", "Long"], index=1)
-    num_openers = st.slider("📄 Number of openers:", min_value=1, max_value=5, value=3)
-    view_mode = st.radio("📀 Display Mode", ["List View", "Card View"], index=1)
+    with st.form("generator_form"):
+        raw_lead = st.text_area("🔍 Paste LinkedIn bio, job post, or context about your lead:", height=200)
+        company = st.text_input("🏢 Lead's Company:")
+        job_title = st.text_input("💼 Lead's Job Title:")
+        notes = st.text_input("📝 Private Notes:")
+        tag = st.selectbox("🏷️ Tag this lead", ["None", "Hot", "Follow-up", "Cold", "Replied"], index=0)
+        style = st.selectbox("✍️ Tone/Style", ["Friendly", "Professional", "Funny", "Bold", "Casual"])
+        length = st.radio("📏 Opener length:", ["Short", "Medium", "Long"], index=1)
+        num_openers = st.slider("📄 Number of openers:", min_value=1, max_value=5, value=3)
+        view_mode = st.radio("📀 Display Mode", ["List View", "Card View"], index=1)
+        submit = st.form_submit_button("✉️ Generate Cold Email")
 
-    lead = clean_lead(raw_lead)
+    lead = re.sub(r'\s+', ' ', raw_lead).strip().lower()
 
-    if st.button("✉️ Generate Cold Email"):
+    if submit:
         if not lead:
             st.warning("Please enter some lead info first.")
         elif len(lead) > 500:
@@ -26,21 +103,30 @@ if st.session_state["active_tab"] == "Generator":
             with st.spinner("Generating..."):
                 try:
                     start_time = time.time()
+                    prompt = (
+                        f"Write exactly {num_openers} {length.lower()} {style.lower()} cold email openers, numbered 1 to {num_openers}, for a sales outreach email. "
+                        f"Use this lead context: {lead}."
+                    )
+                    if company:
+                        prompt += f" The lead works at {company}."
+                    if job_title:
+                        prompt += f" Their job title is {job_title}."
+
                     response = openai.chat.completions.create(
                         model="gpt-4o",
                         messages=[
                             {"role": "system", "content": "You are a world-class B2B cold email copywriter. Only return the email content itself."},
-                            {"role": "user", "content": build_prompt(lead, company, job_title, style, length, num_openers)}
+                            {"role": "user", "content": prompt}
                         ],
                         max_tokens=300,
                         temperature=0.7
                     )
 
                     result = response.choices[0].message.content.strip()
-                    openers = parse_openers(result, num_openers)
+                    matches = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)', result, re.DOTALL)
+                    openers = [op.strip() for op in matches][:num_openers]
                     duration = round(time.time() - start_time, 2)
 
-                    # persist values
                     st.session_state["openers"] = openers
                     st.session_state["generated_lead"] = {
                         "timestamp": datetime.now().isoformat(),
@@ -51,7 +137,7 @@ if st.session_state["active_tab"] == "Generator":
                         "length": length,
                         "notes": notes,
                         "tag": tag,
-                        "openers": openers[:num_openers],
+                        "openers": openers,
                         "user_email": st.session_state.get("user_email", "")
                     }
 
@@ -75,7 +161,6 @@ if st.session_state["active_tab"] == "Generator":
                 except Exception as e:
                     st.error(f"❌ Error generating openers: {e}")
 
-    # ---------- SAVE LOGIC ----------
     if st.session_state.get("openers"):
         if st.session_state["authenticated"]:
             if st.button("💾 Save This Lead"):
