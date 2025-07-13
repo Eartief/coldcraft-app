@@ -1,7 +1,5 @@
 # app/coldpitch_gpt.py
 
-[... code unchanged up to GENERATOR UI ...]
-
 # ---------- GENERATOR UI ----------
 if st.session_state["active_tab"] == "Generator":
     st.title("🧊 ColdCraft - Cold Email Generator")
@@ -43,8 +41,8 @@ if st.session_state["active_tab"] == "Generator":
                     duration = round(time.time() - start_time, 2)
 
                     # persist values
-                    st.session_state.openers = openers
-                    st.session_state.generated_lead = {
+                    st.session_state["openers"] = openers
+                    st.session_state["generated_lead"] = {
                         "timestamp": datetime.now().isoformat(),
                         "lead": lead,
                         "company": company,
@@ -54,7 +52,7 @@ if st.session_state["active_tab"] == "Generator":
                         "notes": notes,
                         "tag": tag,
                         "openers": openers[:num_openers],
-                        "user_email": st.session_state["user_email"]
+                        "user_email": st.session_state.get("user_email", "")
                     }
 
                     st.success("✅ Generated cold openers:")
@@ -82,7 +80,7 @@ if st.session_state["active_tab"] == "Generator":
         if st.session_state["authenticated"]:
             if st.button("💾 Save This Lead"):
                 try:
-                    supabase.table("coldcraft").insert(st.session_state.generated_lead).execute()
+                    supabase.table("coldcraft").insert(st.session_state["generated_lead"]).execute()
                     st.success("✅ Lead saved to Supabase.")
                 except Exception as db_err:
                     st.error(f"❌ Failed to save to Supabase: {db_err}")
