@@ -39,6 +39,8 @@ if "guest" not in st.session_state:
     st.session_state["guest"] = False
 if "user_email" not in st.session_state:
     st.session_state["user_email"] = ""
+if "active_tab" not in st.session_state:
+    st.session_state["active_tab"] = "Generator"
 
 # ---------- LOGIN ----------
 if not st.session_state["authenticated"] and not st.session_state["guest"]:
@@ -79,37 +81,17 @@ with st.sidebar:
             supabase.auth.sign_out()
             st.session_state["authenticated"] = False
             st.session_state["user_email"] = ""
+            st.session_state["active_tab"] = "Generator"
             st.rerun()
         if st.button("📂 View My Saved Leads"):
-            st.session_state["view_leads"] = True
+            st.session_state["active_tab"] = "Saved Leads"
             st.rerun()
     elif st.session_state["guest"]:
         st.write("Guest access")
         if st.button("🚪 Exit Guest Mode"):
             st.session_state["guest"] = False
+            st.session_state["active_tab"] = "Generator"
             st.rerun()
-
-# ---------- SAVED LEADS VIEW ----------
-if st.session_state.get("view_leads", False):
-    st.title("📁 Saved Leads")
-    user_email = st.session_state.get("user_email", "")
-    try:
-        data = supabase.table("coldcraft").select("*").eq("user_email", user_email).order("timestamp", desc=True).execute()
-        leads = data.data
-        if not leads:
-            st.info("No leads saved yet.")
-        for lead in leads:
-            with st.expander(f"{lead.get('lead')[:40]}..."):
-                st.write(f"**Company**: {lead.get('company')}")
-                st.write(f"**Job Title**: {lead.get('job_title')}")
-                st.write(f"**Style**: {lead.get('style')} | **Length**: {lead.get('length')}")
-                st.write(f"**Notes**: {lead.get('notes')}")
-                st.write(f"**Tag**: {lead.get('tag')}")
-                for idx, opener in enumerate(lead.get("openers", [])):
-                    st.markdown(f"**Opener {idx+1}:** {opener}")
-    except Exception as e:
-        st.error(f"Failed to load saved leads: {e}")
-    st.stop()
 
 # ---------- FUNCTIONS ----------
 def clean_lead(text: str) -> str:
@@ -130,83 +112,112 @@ def parse_openers(text: str, expected_count: int = 5) -> list:
     matches = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)', text, re.DOTALL)
     return [op.strip() for op in matches][:expected_count]
 
-# ---------- UI ----------
-st.title("🧊 ColdCraft - Cold Email Generator")
-st.write("Paste your lead info below and get a personalized cold email opener.")
+# ---------- VIEW SAVED LEADS ----------
+if st.session_state["active_tab"] == "Saved Leads":
+    st.title("📁 Saved Leads")
+    if st.button("⬅️ Back to Generator"):
+        st.session_state["active_tab"] = "Generator"
+        st.rerun()
 
-raw_lead = st.text_area("🔍 Paste LinkedIn bio, job post, or context about your lead:", height=200)
-company = st.text_input("🏢 Lead's Company:")
-job_title = st.text_input("💼 Lead's Job Title:")
-notes = st.text_input("📝 Private Notes:")
-tag = st.selectbox("🏷️ Tag this lead", ["None", "Hot", "Follow-up", "Cold", "Replied"], index=0)
-style = st.selectbox("✍️ Tone/Style", ["Friendly", "Professional", "Funny", "Bold", "Casual"])
-length = st.radio("📏 Opener length:", ["Short", "Medium", "Long"], index=1)
-num_openers = st.slider("📄 Number of openers:", min_value=1, max_value=5, value=3)
-view_mode = st.radio("📀 Display Mode", ["List View", "Card View"], index=1)
+    user_email = st.session_state.get("user_email", "")
+    try:
+        data = supabase.table("coldcraft").select("*").eq("user_email", user_email).order("timestamp", desc=True).execute()
+        leads = data.data
+        if not leads:
+            st.info("No leads saved yet.")
+        for lead in leads:
+            with st.expander(f"{lead.get('lead')[:40]}..."):
+                st.write(f"**Company**: {lead.get('company')}")
+                st.write(f"**Job Title**: {lead.get('job_title')}")
+                st.write(f"**Style**: {lead.get('style')} | **Length**: {lead.get('length')}")
+                st.write(f"**Notes**: {lead.get('notes')}")
+                st.write(f"**Tag**: {lead.get('tag')}")
+                for idx, opener in enumerate(lead.get("openers", [])):
+                    st.markdown(f"**Opener {idx+1}:** {opener}")
+    except Exception as e:
+        st.error(f"Failed to load saved leads: {e}")
+    st.stop()
 
-lead = clean_lead(raw_lead)
+# ---------- GENERATOR UI ----------
+if st.session_state["active_tab"] == "Generator":
+    st.title("🧊 ColdCraft - Cold Email Generator")
+    st.write("Paste your lead info below and get a personalized cold email opener.")
 
-if st.button("✉️ Generate Cold Email"):
-    if not lead:
-        st.warning("Please enter some lead info first.")
-    elif len(lead) > 500:
-        st.warning("⚠️ Lead info is too long. Please keep it under 500 characters.")
-    else:
-        with st.spinner("Generating..."):
-            try:
-                start_time = time.time()
-                response = openai.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": "You are a world-class B2B cold email copywriter. Only return the email content itself."},
-                        {"role": "user", "content": build_prompt(lead, company, job_title, style, length, num_openers)}
-                    ],
-                    max_tokens=300,
-                    temperature=0.7
-                )
+    raw_lead = st.text_area("🔍 Paste LinkedIn bio, job post, or context about your lead:", height=200)
+    company = st.text_input("🏢 Lead's Company:")
+    job_title = st.text_input("💼 Lead's Job Title:")
+    notes = st.text_input("📝 Private Notes:")
+    tag = st.selectbox("🏷️ Tag this lead", ["None", "Hot", "Follow-up", "Cold", "Replied"], index=0)
+    style = st.selectbox("✍️ Tone/Style", ["Friendly", "Professional", "Funny", "Bold", "Casual"])
+    length = st.radio("📏 Opener length:", ["Short", "Medium", "Long"], index=1)
+    num_openers = st.slider("📄 Number of openers:", min_value=1, max_value=5, value=3)
+    view_mode = st.radio("📀 Display Mode", ["List View", "Card View"], index=1)
 
-                result = response.choices[0].message.content.strip()
-                openers = parse_openers(result, num_openers)
-                duration = round(time.time() - start_time, 2)
-                st.session_state.openers = openers
+    lead = clean_lead(raw_lead)
 
-                st.success("✅ Generated cold openers:")
-                combined_output = "\n\n".join(openers)
+    if st.button("✉️ Generate Cold Email"):
+        if not lead:
+            st.warning("Please enter some lead info first.")
+        elif len(lead) > 500:
+            st.warning("⚠️ Lead info is too long. Please keep it under 500 characters.")
+        else:
+            with st.spinner("Generating..."):
+                try:
+                    start_time = time.time()
+                    response = openai.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": "You are a world-class B2B cold email copywriter. Only return the email content itself."},
+                            {"role": "user", "content": build_prompt(lead, company, job_title, style, length, num_openers)}
+                        ],
+                        max_tokens=300,
+                        temperature=0.7
+                    )
 
-                for idx, opener in enumerate(openers):
-                    st.markdown(f"### ✉️ Opener {idx+1}")
-                    if view_mode == "Card View":
-                        st.markdown(
-                            f"<div style='padding: 1rem; margin-bottom: 1rem; border-radius: 12px; background-color: rgba(240,240,255,0.1); border: 1px solid rgba(200,200,200,0.3); box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>{opener}</div>",
-                            unsafe_allow_html=True
-                        )
+                    result = response.choices[0].message.content.strip()
+                    openers = parse_openers(result, num_openers)
+                    duration = round(time.time() - start_time, 2)
+                    st.session_state.openers = openers
+
+                    st.success("✅ Generated cold openers:")
+                    combined_output = "\n\n".join(openers)
+
+                    for idx, opener in enumerate(openers):
+                        st.markdown(f"### ✉️ Opener {idx+1}")
+                        if view_mode == "Card View":
+                            st.markdown(
+                                f"<div style='padding: 1rem; margin-bottom: 1rem; border-radius: 12px; background-color: rgba(240,240,255,0.1); border: 1px solid rgba(200,200,200,0.3); box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>{opener}</div>",
+                                unsafe_allow_html=True
+                            )
+                        else:
+                            st.markdown(opener)
+                        st.code(opener, language='text')
+
+                    st.text_area("📋 All Openers (copy manually if needed):", combined_output, height=150)
+
+                    if st.session_state["authenticated"]:
+                        try:
+                            supabase.table("coldcraft").insert({
+                                "timestamp": datetime.now().isoformat(),
+                                "lead": lead,
+                                "company": company,
+                                "job_title": job_title,
+                                "style": style,
+                                "length": length,
+                                "notes": notes,
+                                "tag": tag,
+                                "openers": openers[:num_openers],
+                                "user_email": st.session_state["user_email"]
+                            }).execute()
+                            st.success("✅ Lead saved to Supabase.")
+                            st.session_state["active_tab"] = "Saved Leads"
+                            st.rerun()
+                        except Exception as db_err:
+                            st.error(f"❌ Failed to save to Supabase: {db_err}")
                     else:
-                        st.markdown(opener)
-                    st.code(opener, language='text')
+                        st.info("Log in to save leads.")
 
-                st.text_area("📋 All Openers (copy manually if needed):", combined_output, height=150)
+                    st.caption(f"⏱️ Generated in {duration} seconds | 📏 {len(result)} characters")
 
-                if st.session_state["authenticated"]:
-                    try:
-                        supabase.table("coldcraft").insert({
-                            "timestamp": datetime.now().isoformat(),
-                            "lead": lead,
-                            "company": company,
-                            "job_title": job_title,
-                            "style": style,
-                            "length": length,
-                            "notes": notes,
-                            "tag": tag,
-                            "openers": openers[:num_openers],
-                            "user_email": st.session_state["user_email"]
-                        }).execute()
-                        st.success("✅ Lead saved to Supabase.")
-                    except Exception as db_err:
-                        st.error(f"❌ Failed to save to Supabase: {db_err}")
-                else:
-                    st.info("Log in to save leads.")
-
-                st.caption(f"⏱️ Generated in {duration} seconds | 📏 {len(result)} characters")
-
-            except Exception as e:
-                st.error(f"❌ Error generating openers: {e}")
+                except Exception as e:
+                    st.error(f"❌ Error generating openers: {e}")
