@@ -5,22 +5,87 @@ import openai
 import os
 import re
 import time
-import csv
 from datetime import datetime
-from supabase import create_client, Client
+from supabase import create_client, Client, AuthApiError
 
+# -------------------- Supabase Setup --------------------
 SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["anon_key"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# -------------------- Session Auth State --------------------
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+if "guest" not in st.session_state:
+    st.session_state["guest"] = False
+if "user_email" not in st.session_state:
+    st.session_state["user_email"] = ""
+
+# -------------------- Login Screen --------------------
+if not st.session_state["authenticated"] and not st.session_state["guest"]:
+    st.image("https://i.imgur.com/FYZ9NbS.png", width=140)
+    st.title("🔐 Welcome to ColdCraft")
+    st.subheader("Login or continue as guest to use the app.")
+
+    email = st.text_input("📧 Email")
+    password = st.text_input("🔑 Password", type="password")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("Log In"):
+            try:
+                result = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                st.session_state["authenticated"] = True
+                st.session_state["user_email"] = result.user.email
+                st.success(f"✅ Logged in as {result.user.email}")
+                st.rerun()
+            except AuthApiError as e:
+                st.error("❌ Invalid credentials or Supabase error")
+
+    with col2:
+        if st.button("Continue as Guest"):
+            st.session_state["guest"] = True
+            st.success("✅ Continuing as guest")
+            st.rerun()
+
+    st.stop()
+
+# -------------------- Main App --------------------
+
 st.set_page_config(page_title='ColdCraft', layout='centered')
-st.info("🔌 Testing Supabase connection...")
+
+# Hard-set Light Mode
+st.markdown("""
+    <style>
+    html, body, .stApp {
+        background-color: #f8f9fa;
+        color: #111;
+    }
+    textarea, input, select {
+        background-color: #fff;
+        color: #000;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.image("https://i.imgur.com/FYZ9NbS.png", width=120)
+st.title("🧊 ColdCraft - Cold Email Generator")
+
+if st.session_state["authenticated"]:
+    st.caption(f"🔐 Logged in as: {st.session_state['user_email']}")
+elif st.session_state["guest"]:
+    st.caption("👤 Guest session")
+
+st.info("🔌 Connecting to Supabase...")
 
 try:
     supabase.table("coldcraft").select("*").limit(1).execute()
     st.success("✅ Supabase connection successful!")
 except Exception as e:
     st.error(f"❌ Supabase error: {e}")
+
+# -------------------- Helper Functions --------------------
 
 def clean_lead(text: str) -> str:
     return re.sub(r'\s+', ' ', text).strip().lower()
@@ -40,19 +105,7 @@ def parse_openers(text: str, expected_count: int = 5) -> list:
     matches = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)', text, re.DOTALL)
     return [op.strip() for op in matches][:expected_count]
 
-if "theme" not in st.session_state:
-    st.session_state["theme"] = "Dark"
-
-selected_theme = st.selectbox("🌃 Select Theme", ["Dark", "Light"], index=0 if st.session_state["theme"] == "Dark" else 1)
-st.session_state["theme"] = selected_theme
-
-if selected_theme == "Light":
-    st.markdown("""<style> html, body, .stApp { background-color: #f8f9fa; color: #111; } textarea, input, select { background-color: #fff; color: #000; } </style>""", unsafe_allow_html=True)
-else:
-    st.markdown("""<style> html, body, .stApp { background-color: #0e1117; color: #fff; } textarea, input, select { background-color: #1e1e1e; color: #fff; } </style>""", unsafe_allow_html=True)
-
-st.title("🧊 ColdCraft - Cold Email Generator")
-st.write("Paste your lead info below and get a personalized cold email opener.")
+# -------------------- UI Form --------------------
 
 openai.api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
 
@@ -86,7 +139,6 @@ if st.button("✉️ Generate Cold Email"):
                     max_tokens=300,
                     temperature=0.7
                 )
-
                 result = response.choices[0].message.content.strip()
                 duration = round(time.time() - start_time, 2)
                 openers = parse_openers(result, num_openers)
