@@ -226,11 +226,11 @@ if st.session_state["active_tab"] == "Saved Leads":
         for lead in leads:
             snippet = lead.get("lead", "")[0:120] + ("..." if len(lead.get("lead", "")) > 120 else "")
             with st.expander(snippet):
-                st.write(f"**Company:** {lead.get('company','')}  
+                st.write(f"""**Company:** {lead.get('company','')}  
 **Job Title:** {lead.get('job_title','')}  
 **Style/Length:** {lead.get('style','')} / {lead.get('length','')}  
 **Notes:** {lead.get('notes','')}  
-**Tag:** {lead.get('tag','')}")
+**Tag:** {lead.get('tag','')}""")
                 for idx, op in enumerate(lead.get("openers", []), start=1):
                     st.markdown(f"**Opener {idx}:** {op}")
                 if st.button("🗑️ Delete This Lead", key=f"del_{lead['id']}"):
