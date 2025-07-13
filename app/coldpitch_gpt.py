@@ -26,7 +26,7 @@ if st.session_state.get("access_token") and st.session_state.get("refresh_token"
             "refresh_token": st.session_state["refresh_token"]
         })
     except Exception:
-        pass  # ignore invalid tokens
+        pass
 
 # Retrieve current session
 db_session = supabase.auth.get_session()
@@ -72,9 +72,8 @@ with st.sidebar:
         st.write(f"Logged in as: {uid}")
         if st.button("🚪 Log out", key=f"logout_btn_{uid}"):
             supabase.auth.sign_out()
-            # Clear stored tokens
-            for t in ["access_token", "refresh_token"]:
-                st.session_state.pop(t, None)
+            for token in ["access_token", "refresh_token"]:
+                st.session_state.pop(token, None)
             st.session_state.clear()
             st.session_state["active_tab"] = "Login"
             st.rerun()
@@ -109,13 +108,12 @@ if st.session_state["active_tab"] == "Login":
                         "email": email,
                         "password": pwd
                     })
-                    # Raise if error present
-                    if getattr(result, "error", None):
+                    if result.error:
                         raise AuthApiError(result.error.message)
-                    # Extract session data
-                    sess = result.data.session
-                    st.session_state["access_token"] = sess.access_token
-                    st.session_state["refresh_token"] = sess.refresh_token
+                    data = result.data
+                    sess = data["session"]  # use dict access
+                    st.session_state["access_token"] = sess["access_token"]
+                    st.session_state["refresh_token"] = sess["refresh_token"]
                     st.session_state["authenticated"] = True
                     st.session_state["user_email"] = email
                     st.session_state["active_tab"] = "Generator"
@@ -133,7 +131,6 @@ if st.session_state["active_tab"] == "Login":
 # --- GENERATOR TAB ---
 if st.session_state["active_tab"] == "Generator":
     st.title("🧊 ColdCraft - Cold Email Generator")
-
     with st.form("generator_form"):
         raw_lead = st.text_area("🔍 Paste LinkedIn bio, job post, or context:", height=200)
         company = st.text_input("🏢 Lead's Company")
@@ -144,14 +141,11 @@ if st.session_state["active_tab"] == "Generator":
         length = st.radio("📏 Opener length", ["Short", "Medium", "Long"], index=1)
         num_openers = st.slider("📄 Number of openers", 1, 5, st.session_state["saved_num_openers"])
         view_mode = st.radio("📀 Display Mode", ["List View", "Card View"], index=1)
-
         if st.form_submit_button("✉️ Generate Cold Email"):
             st.session_state["saved_num_openers"] = num_openers
             messages = [
                 {"role": "system", "content": "You're a professional B2B cold email writer. Return exactly the number of openers requested, numbered 1-N."},
-                {"role": "user", "content":
-                    f"Write {num_openers} {length.lower()} {style.lower()} cold email openers for a sales outreach.\n"
-                    f"Context: {raw_lead}\nCompany: {company}\nJob Title: {job_title}\nNotes: {notes}"}
+                {"role": "user", "content": f"Write {num_openers} {length.lower()} {style.lower()} cold email openers for a sales outreach.\nContext: {raw_lead}\nCompany: {company}\nJob Title: {job_title}\nNotes: {notes}"}
             ]
             try:
                 with st.spinner("🛠️ Generating your openers..."):
@@ -166,71 +160,43 @@ if st.session_state["active_tab"] == "Generator":
                     if len(openers) < num_openers:
                         openers = [line.strip() for line in result.splitlines() if line.strip()][:num_openers]
                     st.session_state["openers"] = openers
-                    st.session_state["generated_lead"] = {
-                        "lead": raw_lead,
-                        "company": company,
-                        "job_title": job_title,
-                        "notes": notes,
-                        "tag": tag,
-                        "style": style,
-                        "length": length,
-                        "openers": openers,
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
+                    st.session_state["generated_lead"] = {"lead": raw_lead, "company": company, "job_title": job_title, "notes": notes, "tag": tag, "style": style, "length": length, "openers": openers, "timestamp": datetime.utcnow().isoformat()}
             except Exception as e:
                 st.error(f"❌ Error from OpenAI: {e}")
-
     if "openers" in st.session_state:
         for idx, opener in enumerate(st.session_state["openers"], start=1):
             st.markdown(f"### ✉️ Opener {idx}")
             if st.session_state.get("view_mode") == "Card View":
-                st.markdown(
-                    f"<div style='padding:1rem;margin-bottom:1rem;border-radius:12px;"
-                    "background-color:rgba(240,240,255,0.1);border:1px solid rgba(200,200,200,0.3);"
-                    "box-shadow:0 2px 5px rgba(0,0,0,0.1);'>{opener}</div>",
-                    unsafe_allow_html=True
-                )
+                st.markdown(f"<div style='padding:1rem;margin-bottom:1rem;border-radius:12px;background-color:rgba(240,240,255,0.1);border:1px solid rgba(200,200,200,0.3);box-shadow:0 2px 5px rgba(0,0,0,0.1);'>{opener}</div>", unsafe_allow_html=True)
             else:
                 st.markdown(opener)
             st.code(opener, language='text')
-
         if st.session_state["authenticated"]:
             if st.button("💾 Save This Lead"):
                 try:
-                    supabase.table("coldcraft").insert({
-                        **st.session_state["generated_lead"],
-                        "user_email": st.session_state["user_email"]
-                    }).execute()
+                    supabase.table("coldcraft").insert({**st.session_state["generated_lead"], "user_email": st.session_state["user_email"]}).execute()
                     st.success("✅ Lead saved.")
                 except Exception as e:
                     st.error(f"❌ Save failed: {e}")
         else:
             st.info("🔒 Log in to save this lead.")
         components.html("<script>window.scrollTo({ top: document.body.scrollHeight });</script>", height=0)
-
 # --- SAVED LEADS TAB ---
 if st.session_state["active_tab"] == "Saved Leads":
     st.title("📁 Your Saved Leads")
     try:
-        data = supabase.table("coldcraft").select("*").eq(
-            "user_email", st.session_state["user_email"]
-        ).order("timestamp", desc=True).execute()
+        data = supabase.table("coldcraft").select("*").eq("user_email", st.session_state["user_email"]).order("timestamp", desc=True).execute()
         leads = data.data or []
     except Exception as e:
         st.error(f"❌ Failed to load leads: {e}")
         leads = []
-
     if not leads:
         st.info("No saved leads yet.")
     else:
         for lead in leads:
             snippet = lead.get("lead", "")[0:120] + ("..." if len(lead.get("lead", "")) > 120 else "")
             with st.expander(snippet):
-                st.write(f"""**Company:** {lead.get('company','')}  
-**Job Title:** {lead.get('job_title','')}  
-**Style/Length:** {lead.get('style','')} / {lead.get('length','')}  
-**Notes:** {lead.get('notes','')}  
-**Tag:** {lead.get('tag','')}""")
+                st.write(f"**Company:** {lead.get('company','')}  \n**Job Title:** {lead.get('job_title','')}  \n**Style/Length:** {lead.get('style','')} / {lead.get('length','')}  \n**Notes:** {lead.get('notes','')}  \n**Tag:** {lead.get('tag','')}")
                 for idx, op in enumerate(lead.get("openers", []), start=1):
                     st.markdown(f"**Opener {idx}:** {op}")
                 if st.button("🗑️ Delete This Lead", key=f"del_{lead['id']}"):
@@ -240,10 +206,6 @@ if st.session_state["active_tab"] == "Saved Leads":
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Failed to delete: {e}")
-
-# Auto-scroll to bottom if openers present
+# Auto-scroll
 if "openers" in st.session_state:
-    components.html(
-        "<script>window.scrollTo({ top: document.body.scrollHeight });</script>",
-        height=0
-    )
+    components.html("<script>window.scrollTo({ top: document.body.scrollHeight });</script>", height=0)
