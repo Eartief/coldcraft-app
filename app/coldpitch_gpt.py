@@ -78,6 +78,7 @@ st.markdown(
 html, body, .stApp {
   background-color: #ffffff !important;
   color: #111 !important;
+  font-family: "Arial", sans-serif;
 }
 
 input, textarea, select, button {
@@ -90,14 +91,29 @@ input, textarea, select, button {
 .stTextInput > label, .stPassword > label, .stSelectbox > label, .stRadio > label {
   color: #111 !important;
   font-weight: bold;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+label {
+  color: #111 !important;
+  font-weight: bold;
+}
+
+button {
+  background-color: #eeeeee !important;
+  color: #111 !important;
 }
 
 /* Mobile */
 @media (max-width: 600px) {
+  html, body {
+    font-size: 16px !important;
+  }
   input, textarea, select, button {
     width: 100% !important;
+    font-size: 1rem !important;
     box-sizing: border-box;
-    font-size: 1rem;
   }
   .block-container {
     padding: 1rem !important;
@@ -105,13 +121,16 @@ input, textarea, select, button {
   .stButton > button {
     width: 100% !important;
   }
+  .stTextInput, .stPassword {
+    margin-bottom: 1rem;
+  }
 }
 </style>
 """,
     unsafe_allow_html=True
 )
 
-st.image("https://via.placeholder.com/200x100?text=ColdCraft", width=200)
+st.image("https://cdn.jsdelivr.net/gh/eartief/assets@main/coldcraft-logo.png", width=200)
 
 # Sidebar menu
 with st.sidebar:
