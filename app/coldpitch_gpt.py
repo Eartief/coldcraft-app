@@ -10,6 +10,8 @@ import streamlit.components.v1 as components
 # Configuration
 SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["anon_key"]
+# URL where users should be redirected after confirming email
+CONFIRMATION_REDIRECT_URL = st.secrets.get("confirmation_redirect_url", os.getenv("CONFIRMATION_REDIRECT_URL"))
 openai.api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
 
 @st.cache_resource
@@ -133,7 +135,11 @@ if st.session_state["active_tab"] == "Login":
                         st.error("❌ Passwords do not match.")
                     else:
                         try:
-                            resp = supabase.auth.sign_up({"email": new_email, "password": new_pwd})
+                            # Include redirect URL so confirmation link returns to app
+                            resp = supabase.auth.sign_up(
+                                {"email": new_email, "password": new_pwd},
+                                {"redirect_to": CONFIRMATION_REDIRECT_URL}
+                            )
                             user = getattr(resp, 'user', None)
                             session = getattr(resp, 'session', None)
                             if session and user:
@@ -145,7 +151,7 @@ if st.session_state["active_tab"] == "Login":
                                 st.success("✅ Account created and logged in!")
                                 st.rerun()
                             else:
-                                st.info("✅ Check email to confirm before logging in.")
+                                st.info("✅ Check email for confirmation link.")
                                 st.session_state["active_tab"] = "Login"
                                 st.rerun()
                         except AuthApiError as e:
@@ -175,23 +181,13 @@ if st.session_state["active_tab"] == "Generator":
             try:
                 with st.spinner("Generating…"):
                     client = openai.OpenAI()
-                    resp = client.chat.completions.create(model="gpt-4o", messages=msgs, max_tokens= num_openers * 80)
+                    resp = client.chat.completions.create(model="gpt-4o", messages=msgs, max_tokens=num_openers * 80)
                     txt = resp.choices[0].message.content.strip()
                     openers = re.findall(r"\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)", txt, re.DOTALL)
                     if len(openers) < num_openers:
                         openers = [l.strip() for l in txt.splitlines() if l.strip()][:num_openers]
                     st.session_state["openers"] = openers
-                    st.session_state["generated_lead"] = {
-                        "lead": raw_lead,
-                        "company": company,
-                        "job_title": job_title,
-                        "notes": notes,
-                        "tag": tag,
-                        "style": style,
-                        "length": length,
-                        "openers": openers,
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
+                    st.session_state["generated_lead"] = {"lead": raw_lead, "company": company, "job_title": job_title, "notes": notes, "tag": tag, "style": style, "length": length, "openers": openers, "timestamp": datetime.utcnow().isoformat()}
             except Exception as e:
                 st.error(f"Error: {e}")
     if "openers" in st.session_state:
