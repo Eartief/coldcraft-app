@@ -197,8 +197,11 @@ if st.session_state["active_tab"] == "Generator":
                                     "user_email": st.session_state["user_email"]
                                 }).execute()
                                 st.success("✅ Lead saved to Supabase.")
+                                st.toast("Lead successfully saved.", icon="💾")
                             except Exception as db_err:
                                 st.error(f"❌ Failed to save to Supabase: {db_err}")
+                        else:
+                            st.info("Click 'Save This Lead' to store it.")
                     else:
                         st.info("Log in to save leads.")
 
