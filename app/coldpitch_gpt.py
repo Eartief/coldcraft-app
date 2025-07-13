@@ -7,7 +7,8 @@ from supabase import create_client, Client
 from gotrue.errors import AuthApiError
 import streamlit.components.v1 as components
 
-# Configuration\SUPABASE_URL = st.secrets["supabase"]["url"]
+# Configuration
+SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["anon_key"]
 CONFIRMATION_REDIRECT_URL = st.secrets.get(
     "confirmation_redirect_url",
@@ -154,9 +155,8 @@ if st.session_state["active_tab"] == "Login":
                     else:
                         try:
                             resp = supabase.auth.sign_up(
-                                email=new_email,
-                                password=new_pwd,
-                                redirect_to=CONFIRMATION_REDIRECT_URL
+                                {"email": new_email, "password": new_pwd},
+                                {"redirect_to": CONFIRMATION_REDIRECT_URL}
                             )
                             session = getattr(resp, 'session', None)
                             user = getattr(resp, 'user', None)
@@ -176,4 +176,4 @@ if st.session_state["active_tab"] == "Login":
                             st.error(f"❌ Sign-up failed: {e}")
         st.stop()
 
-# Generator\...
+# Generator and Saved Leads code unchanged...
