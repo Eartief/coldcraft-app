@@ -110,7 +110,35 @@ with st.sidebar:
             st.rerun()
 
 if st.session_state["active_tab"] == "Generator":
-    st.write("Loading generator...")
+    st.title("🧊 ColdCraft - Cold Email Generator")
+    st.write("Paste your lead info below and get a personalized cold email opener.")
+
+    raw_lead = st.text_area("🔍 Paste LinkedIn bio, job post, or context about your lead:", key="raw_lead", height=200)
+    company = st.text_input("🏢 Lead's Company:", key="company")
+    job_title = st.text_input("💼 Lead's Job Title:", key="job_title")
+    notes = st.text_input("📝 Private Notes:", key="notes")
+    tag = st.selectbox("🏷️ Tag this lead", ["None", "Hot", "Follow-up", "Cold", "Replied"], key="tag", index=0)
+    style = st.selectbox("✍️ Tone/Style", ["Friendly", "Professional", "Funny", "Bold", "Casual"], key="style")
+    length = st.radio("📏 Opener length:", ["Short", "Medium", "Long"], key="length", index=1)
+    num_openers = st.slider("📄 Number of openers:", min_value=1, max_value=5, value=st.session_state.saved_num_openers, key="num_openers")
+    view_mode = st.radio("📀 Display Mode", ["List View", "Card View"], index=1, key="view_mode")
 
 if st.session_state["active_tab"] == "Saved Leads":
-    st.write("Loading saved leads...")
+    st.title("📁 Saved Leads")
+    user_email = st.session_state.get("user_email", "")
+    try:
+        data = supabase.table("coldcraft").select("*").eq("user_email", user_email).order("timestamp", desc=True).execute()
+        leads = data.data
+        if not leads:
+            st.info("No leads saved yet.")
+        for lead in leads:
+            with st.expander(f"{lead.get('lead')[:40]}..."):
+                st.write(f"**Company**: {lead.get('company')}")
+                st.write(f"**Job Title**: {lead.get('job_title')}")
+                st.write(f"**Style**: {lead.get('style')} | **Length**: {lead.get('length')}")
+                st.write(f"**Notes**: {lead.get('notes')}")
+                st.write(f"**Tag**: {lead.get('tag')}")
+                for idx, opener in enumerate(lead.get("openers", [])):
+                    st.markdown(f"**Opener {idx+1}:** {opener}")
+    except Exception as e:
+        st.error(f"Failed to load saved leads: {e}")
