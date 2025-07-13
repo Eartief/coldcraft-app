@@ -17,7 +17,6 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title='ColdCraft', layout='centered')
 
-# ---------- LIGHT THEME + LOGO ----------
 st.markdown("""
 <style>
 html, body, .stApp {
@@ -33,7 +32,7 @@ textarea, input, select {
 
 st.image("https://i.imgur.com/fX4tDCb.png", width=200)
 
-# ---------- SESSION INIT ----------
+# ---------- SESSION ----------
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 if "guest" not in st.session_state:
@@ -41,7 +40,7 @@ if "guest" not in st.session_state:
 if "user_email" not in st.session_state:
     st.session_state["user_email"] = ""
 
-# ---------- LOGIN / GUEST ----------
+# ---------- LOGIN ----------
 if not st.session_state["authenticated"] and not st.session_state["guest"]:
     st.subheader("🔐 Welcome to ColdCraft")
     st.write("Login or continue as guest to use the app.")
@@ -53,28 +52,25 @@ if not st.session_state["authenticated"] and not st.session_state["guest"]:
 
         if login_btn:
             try:
-                user = supabase.auth.sign_in_with_password({
+                supabase.auth.sign_in_with_password({
                     "email": email,
                     "password": password
                 })
-                if user.user:
-                    st.session_state["authenticated"] = True
-                    st.session_state["user_email"] = email
-                    st.success(f"✅ Logged in as {email}")
-                    st.rerun()
-                else:
-                    st.error("❌ Login failed: Invalid credentials.")
+                st.session_state["authenticated"] = True
+                st.session_state["user_email"] = email
+                st.success(f"✅ Logged in as {email}")
+                st.rerun()
             except AuthApiError as e:
                 st.error(f"❌ Login failed: {e}")
 
+    st.markdown("Don't have an account? [Sign up here](https://coldcraft.supabase.co/auth/sign-up)")
     if st.button("Continue as Guest"):
         st.session_state["guest"] = True
         st.success("✅ Continuing as guest...")
         st.rerun()
-
     st.stop()
 
-# ---------- LOGOUT ----------
+# ---------- SIDEBAR ----------
 with st.sidebar:
     st.markdown("### 👤 Session")
     if st.session_state["authenticated"]:
@@ -84,17 +80,41 @@ with st.sidebar:
             st.session_state["authenticated"] = False
             st.session_state["user_email"] = ""
             st.rerun()
+        if st.button("📂 View My Saved Leads"):
+            st.session_state["view_leads"] = True
+            st.rerun()
     elif st.session_state["guest"]:
         st.write("Guest access")
         if st.button("🚪 Exit Guest Mode"):
             st.session_state["guest"] = False
             st.rerun()
 
-# ---------- CLEANING ----------
+# ---------- SAVED LEADS VIEW ----------
+if st.session_state.get("view_leads", False):
+    st.title("📁 Saved Leads")
+    user_email = st.session_state.get("user_email", "")
+    try:
+        data = supabase.table("coldcraft").select("*").eq("user_email", user_email).order("timestamp", desc=True).execute()
+        leads = data.data
+        if not leads:
+            st.info("No leads saved yet.")
+        for lead in leads:
+            with st.expander(f"{lead.get('lead')[:40]}..."):
+                st.write(f"**Company**: {lead.get('company')}")
+                st.write(f"**Job Title**: {lead.get('job_title')}")
+                st.write(f"**Style**: {lead.get('style')} | **Length**: {lead.get('length')}")
+                st.write(f"**Notes**: {lead.get('notes')}")
+                st.write(f"**Tag**: {lead.get('tag')}")
+                for idx, opener in enumerate(lead.get("openers", [])):
+                    st.markdown(f"**Opener {idx+1}:** {opener}")
+    except Exception as e:
+        st.error(f"Failed to load saved leads: {e}")
+    st.stop()
+
+# ---------- FUNCTIONS ----------
 def clean_lead(text: str) -> str:
     return re.sub(r'\s+', ' ', text).strip().lower()
 
-# ---------- PROMPT ----------
 def build_prompt(lead, company, job_title, style, length, num_openers):
     prompt = (
         f"Write exactly {num_openers} {length.lower()} {style.lower()} cold email openers, numbered 1 to {num_openers}, for a sales outreach email. "
@@ -106,12 +126,11 @@ def build_prompt(lead, company, job_title, style, length, num_openers):
         prompt += f" Their job title is {job_title}."
     return prompt
 
-# ---------- PARSE ----------
 def parse_openers(text: str, expected_count: int = 5) -> list:
     matches = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)', text, re.DOTALL)
     return [op.strip() for op in matches][:expected_count]
 
-# ---------- MAIN APP ----------
+# ---------- UI ----------
 st.title("🧊 ColdCraft - Cold Email Generator")
 st.write("Paste your lead info below and get a personalized cold email opener.")
 
@@ -167,21 +186,25 @@ if st.button("✉️ Generate Cold Email"):
 
                 st.text_area("📋 All Openers (copy manually if needed):", combined_output, height=150)
 
-                try:
-                    supabase.table("coldcraft").insert({
-                        "timestamp": datetime.now().isoformat(),
-                        "lead": lead,
-                        "company": company,
-                        "job_title": job_title,
-                        "style": style,
-                        "length": length,
-                        "notes": notes,
-                        "tag": tag,
-                        "openers": openers[:num_openers]
-                    }).execute()
-                    st.success("✅ Lead saved to Supabase.")
-                except Exception as db_err:
-                    st.error(f"❌ Failed to save to Supabase: {db_err}")
+                if st.session_state["authenticated"]:
+                    try:
+                        supabase.table("coldcraft").insert({
+                            "timestamp": datetime.now().isoformat(),
+                            "lead": lead,
+                            "company": company,
+                            "job_title": job_title,
+                            "style": style,
+                            "length": length,
+                            "notes": notes,
+                            "tag": tag,
+                            "openers": openers[:num_openers],
+                            "user_email": st.session_state["user_email"]
+                        }).execute()
+                        st.success("✅ Lead saved to Supabase.")
+                    except Exception as db_err:
+                        st.error(f"❌ Failed to save to Supabase: {db_err}")
+                else:
+                    st.info("Log in to save leads.")
 
                 st.caption(f"⏱️ Generated in {duration} seconds | 📏 {len(result)} characters")
 
