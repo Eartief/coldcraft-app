@@ -10,6 +10,7 @@ from supabase import create_client, Client
 from gotrue.errors import AuthApiError
 import streamlit.components.v1 as components
 
+# --- Config ---
 SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["anon_key"]
 openai.api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
@@ -20,6 +21,7 @@ def get_supabase():
 
 supabase: Client = get_supabase()
 
+# --- Session state defaults ---
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 if "guest" not in st.session_state:
@@ -37,6 +39,7 @@ if "reset_generator_form" in st.session_state and st.session_state.reset_generat
         st.session_state.pop(key, None)
     st.session_state.reset_generator_form = False
 
+# --- Styling ---
 st.set_page_config(page_title='ColdCraft', layout='centered')
 st.markdown("""
 <style>
@@ -52,6 +55,7 @@ textarea, input, select {
 """, unsafe_allow_html=True)
 st.image("https://i.imgur.com/fX4tDCb.png", width=200)
 
+# --- Sidebar ---
 with st.sidebar:
     st.markdown("### 👤 Session")
     if st.session_state["authenticated"]:
@@ -75,6 +79,7 @@ with st.sidebar:
             st.session_state["active_tab"] = "Login"
             st.rerun()
 
+# --- Login Tab ---
 if st.session_state["active_tab"] == "Login":
     if not st.session_state["authenticated"] and not st.session_state["guest"]:
         st.subheader("🔐 Welcome to ColdCraft")
@@ -103,6 +108,7 @@ if st.session_state["active_tab"] == "Login":
         st.markdown("Don't have an account? [Sign up here](https://coldcraft.supabase.co/auth/sign-up)")
         st.stop()
 
+# --- Generator Tab ---
 if st.session_state["active_tab"] == "Generator":
     st.title("🧊 ColdCraft - Cold Email Generator")
     with st.form("generator_form"):
@@ -120,7 +126,7 @@ if st.session_state["active_tab"] == "Generator":
         if generate_btn:
             st.session_state.saved_num_openers = num_openers
             messages = [
-                {"role": "system", "content": "You’re a world-class cold email copywriter."},
+                {"role": "system", "content": "You’re a world-class cold email copywriter. Always return exactly the number of openers asked. Number each one like '1.', '2.', etc."},
                 {"role": "user", "content":
                     f"Context: {raw_lead}\n"
                     f"Company: {company}\n"
@@ -135,10 +141,12 @@ if st.session_state["active_tab"] == "Generator":
             resp = client.chat.completions.create(
                 model="gpt-4o",
                 messages=messages,
-                max_tokens=num_openers * 50
+                max_tokens=num_openers * 80
             )
             result = resp.choices[0].message.content.strip()
-            openers = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)', result, re.DOTALL)
+            openers = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|$)', result, re.DOTALL)
+            if len(openers) < num_openers:
+                openers = [s.strip() for s in result.split("\n") if s.strip()][:num_openers]
             st.session_state.openers = openers
             st.session_state.generated_lead = {
                 "lead": raw_lead,
@@ -180,4 +188,32 @@ if st.session_state["active_tab"] == "Generator":
         </script>
         """, height=0)
 
-# Saved Leads tab remains unchanged below
+# --- Saved Leads Tab ---
+if st.session_state["active_tab"] == "Saved Leads":
+    st.title("📁 Your Saved Leads")
+    try:
+        data = supabase.table("coldcraft").select("*").eq("user_email", st.session_state["user_email"]).order("timestamp", desc=True).execute()
+        leads = data.data or []
+    except Exception as e:
+        st.error(f"Failed to load saved leads: {e}")
+        leads = []
+
+    if not leads:
+        st.info("No leads saved yet.")
+    else:
+        for lead in leads:
+            with st.expander(f"{lead.get('lead', '')[:40]}..."):
+                st.write(f"**Company:** {lead.get('company', '')}")
+                st.write(f"**Job Title:** {lead.get('job_title', '')}")
+                st.write(f"**Style/Length:** {lead.get('style', '')} / {lead.get('length', '')}")
+                st.write(f"**Notes:** {lead.get('notes', '')}")
+                st.write(f"**Tag:** {lead.get('tag', '')}")
+                for idx, opener in enumerate(lead.get("openers", []), 1):
+                    st.markdown(f"**Opener {idx}:** {opener}")
+                if st.button("🗑️ Delete This Lead", key=f"del_{lead['id']}"):
+                    try:
+                        supabase.table("coldcraft").delete().eq("id", lead["id"]).execute()
+                        st.success("✅ Lead deleted.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Failed to delete: {e}")
