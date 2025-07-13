@@ -6,7 +6,7 @@ import os
 import re
 import time
 from datetime import datetime
-from supabase import create_client, Client, AuthApiError
+from supabase import create_client, Client
 
 # -------------------- Supabase Setup --------------------
 SUPABASE_URL = st.secrets["supabase"]["url"]
