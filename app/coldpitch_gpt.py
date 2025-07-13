@@ -21,6 +21,19 @@ try:
 except Exception as e:
     st.error(f"❌ Supabase error: {e}")
 
+st.markdown("""
+    <style>
+    html, body, .stApp {
+        background-color: #f8f9fa;
+        color: #111;
+    }
+    textarea, input, select {
+        background-color: #fff;
+        color: #000;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 def clean_lead(text: str) -> str:
     return re.sub(r'\s+', ' ', text).strip().lower()
 
@@ -38,50 +51,6 @@ def build_prompt(lead, company, job_title, style, length, num_openers):
 def parse_openers(text: str, expected_count: int = 5) -> list:
     matches = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)', text, re.DOTALL)
     return [op.strip() for op in matches][:expected_count]
-
-# Theme Setup
-if "theme" not in st.session_state:
-    st.session_state["theme"] = "Light"
-
-selected_theme = st.selectbox("🌃 Select Theme", ["Dark", "Light"], index=1 if st.session_state["theme"] == "Light" else 0)
-st.session_state["theme"] = selected_theme
-
-if selected_theme == "Light":
-    st.markdown("""
-        <style>
-        html, body, .stApp {
-            background-color: #f8f9fa;
-            color: #111;
-        }
-        textarea, input, select {
-            background-color: #fff;
-            color: #000;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown("""
-        <style>
-        html, body, .stApp {
-            background-color: #0e1117;
-            color: #ffffff;
-        }
-        textarea, input, select {
-            background-color: #1e1e1e;
-            color: #ffffff;
-        }
-        button[kind="primary"] {
-            background-color: #2563eb;
-            color: white;
-            border: 1px solid #2563eb;
-            border-radius: 6px;
-        }
-        button[kind="primary"]:hover {
-            background-color: #1e40af;
-            border-color: #1e40af;
-        }
-        </style>
-    """, unsafe_allow_html=True)
 
 st.title("🧊 ColdCraft - Cold Email Generator")
 st.write("Paste your lead info below and get a personalized cold email opener.")
