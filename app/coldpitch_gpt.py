@@ -17,6 +17,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title='ColdCraft', layout='centered')
 
+# ---------- LIGHT THEME + LOGO ----------
 st.markdown("""
 <style>
 html, body, .stApp {
@@ -30,10 +31,9 @@ textarea, input, select {
 </style>
 """, unsafe_allow_html=True)
 
-st.image("https://i.imgur.com/fX4tDCb.png", width=200)  # Your custom logo
+st.image("https://i.imgur.com/fX4tDCb.png", width=200)
 
-
-# ---------- SESSION ----------
+# ---------- SESSION INIT ----------
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 if "guest" not in st.session_state:
@@ -53,14 +53,17 @@ if not st.session_state["authenticated"] and not st.session_state["guest"]:
 
         if login_btn:
             try:
-                supabase.auth.sign_in_with_password({
+                user = supabase.auth.sign_in_with_password({
                     "email": email,
                     "password": password
                 })
-                st.session_state["authenticated"] = True
-                st.session_state["user_email"] = email
-                st.success(f"✅ Logged in as {email}")
-                st.rerun()
+                if user.user:
+                    st.session_state["authenticated"] = True
+                    st.session_state["user_email"] = email
+                    st.success(f"✅ Logged in as {email}")
+                    st.rerun()
+                else:
+                    st.error("❌ Login failed: Invalid credentials.")
             except AuthApiError as e:
                 st.error(f"❌ Login failed: {e}")
 
@@ -68,6 +71,7 @@ if not st.session_state["authenticated"] and not st.session_state["guest"]:
         st.session_state["guest"] = True
         st.success("✅ Continuing as guest...")
         st.rerun()
+
     st.stop()
 
 # ---------- LOGOUT ----------
@@ -86,11 +90,11 @@ with st.sidebar:
             st.session_state["guest"] = False
             st.rerun()
 
-# ---------- LEAD CLEANING ----------
+# ---------- CLEANING ----------
 def clean_lead(text: str) -> str:
     return re.sub(r'\s+', ' ', text).strip().lower()
 
-# ---------- PROMPT BUILD ----------
+# ---------- PROMPT ----------
 def build_prompt(lead, company, job_title, style, length, num_openers):
     prompt = (
         f"Write exactly {num_openers} {length.lower()} {style.lower()} cold email openers, numbered 1 to {num_openers}, for a sales outreach email. "
@@ -107,7 +111,7 @@ def parse_openers(text: str, expected_count: int = 5) -> list:
     matches = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)', text, re.DOTALL)
     return [op.strip() for op in matches][:expected_count]
 
-# ---------- APP ----------
+# ---------- MAIN APP ----------
 st.title("🧊 ColdCraft - Cold Email Generator")
 st.write("Paste your lead info below and get a personalized cold email opener.")
 
