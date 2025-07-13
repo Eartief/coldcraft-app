@@ -19,23 +19,17 @@ def get_supabase():
 
 supabase: Client = get_supabase()
 
-# ⏳ Restore session on page refresh if cookie exists
-user = supabase.auth.get_user()
-if user and user.user:
-    st.session_state["authenticated"] = True
-    st.session_state["user_email"] = user.user.email
+defaults = {
+    "authenticated": False,
+    "guest": False,
+    "user_email": "",
+    "active_tab": "Login",
+    "saved_num_openers": 3,
+}
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
-# Initialize state
-if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
-if "guest" not in st.session_state:
-    st.session_state["guest"] = False
-if "user_email" not in st.session_state:
-    st.session_state["user_email"] = ""
-if "active_tab" not in st.session_state:
-    st.session_state["active_tab"] = "Login"
-if "saved_num_openers" not in st.session_state:
-    st.session_state["saved_num_openers"] = 3
 if "reset_generator_form" in st.session_state and st.session_state.reset_generator_form:
     for key in ["openers", "generated_lead"]:
         st.session_state.pop(key, None)
@@ -46,22 +40,16 @@ if "reset_generator_form" in st.session_state and st.session_state.reset_generat
 st.set_page_config(page_title='ColdCraft', layout='centered')
 st.markdown("""
 <style>
-html, body, .stApp {
-    background-color: #f8f9fa;
-    color: #111;
-}
-textarea, input, select {
-    background-color: #fff;
-    color: #000;
-}
+html, body, .stApp { background-color: #f8f9fa; color: #111; }
+textarea, input, select { background-color: #fff; color: #000; }
 </style>
 """, unsafe_allow_html=True)
 st.image("https://i.imgur.com/fX4tDCb.png", width=200)
 
 with st.sidebar:
     st.markdown("### 👤 Session")
+    uid = st.session_state.get("user_email", "user")
     if st.session_state["authenticated"]:
-        uid = st.session_state["user_email"] or "user"
         st.write(f"Logged in as: {st.session_state['user_email']}")
         if st.button("🚪 Log out", key=f"logout_btn_{uid}"):
             supabase.auth.sign_out()
@@ -94,19 +82,17 @@ if st.session_state["active_tab"] == "Login":
 
             if login_btn:
                 try:
-                    auth_result = supabase.auth.sign_in_with_password({"email": email, "password": pwd})
+                    supabase.auth.sign_in_with_password({"email": email, "password": pwd})
                     st.session_state.authenticated = True
                     st.session_state.user_email = email
                     st.session_state.active_tab = "Generator"
                     st.rerun()
                 except AuthApiError as e:
                     st.error(f"❌ Login failed: {e}")
-
             if guest_btn:
                 st.session_state.guest = True
                 st.session_state.active_tab = "Generator"
                 st.rerun()
-
         st.markdown("Don't have an account? [Sign up here](https://coldcraft.supabase.co/auth/sign-up)")
         st.stop()
 
@@ -126,18 +112,13 @@ if st.session_state["active_tab"] == "Generator":
         generate_btn = st.form_submit_button("✉️ Generate Cold Email")
         if generate_btn:
             st.session_state["saved_num_openers"] = num_openers
-
             messages = [
                 {"role": "system", "content": "You're a professional B2B cold email writer. Return exactly the number of openers requested, numbered 1-N."},
                 {"role": "user", "content":
                     f"Write {num_openers} {length.lower()} {style.lower()} cold email openers for a sales outreach.\n"
-                    f"Context: {raw_lead}\n"
-                    f"Company: {company}\n"
-                    f"Job Title: {job_title}\n"
-                    f"Notes: {notes}\n"
+                    f"Context: {raw_lead}\nCompany: {company}\nJob Title: {job_title}\nNotes: {notes}"
                 }
             ]
-
             try:
                 with st.spinner("🛠️ Generating your openers..."):
                     client = openai.OpenAI()
@@ -173,7 +154,6 @@ if st.session_state["active_tab"] == "Generator":
             else:
                 st.markdown(opener)
             st.code(opener, language='text')
-
         if st.session_state["authenticated"]:
             if st.button("💾 Save This Lead", key="save_lead_btn"):
                 try:
@@ -186,7 +166,6 @@ if st.session_state["active_tab"] == "Generator":
                     st.error(f"❌ Save failed: {e}")
         else:
             st.info("Log in to save this lead.")
-
         components.html("<script>window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });</script>", height=0)
 
 if st.session_state["active_tab"] == "Saved Leads":
@@ -201,7 +180,6 @@ if st.session_state["active_tab"] == "Saved Leads":
     except Exception as e:
         st.error(f"❌ Failed to load leads: {e}")
         leads = []
-
     if not leads:
         st.info("No saved leads yet.")
     else:
