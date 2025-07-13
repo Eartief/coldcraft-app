@@ -19,7 +19,7 @@ def get_supabase() -> Client:
 supabase = get_supabase()
 
 # Handle email confirmation redirect
-params = st.experimental_get_query_params()
+params = st.query_params
 if 'access_token' in params and 'refresh_token' in params:
     try:
         supabase.auth.set_session({
@@ -121,11 +121,10 @@ if st.session_state["active_tab"] == "Login":
                 if st.form_submit_button("Login"):
                     try:
                         resp = supabase.auth.sign_in_with_password({"email": email, "password": pwd})
-                        session = getattr(resp, 'session', None)
-                        if not session:
+                        if not getattr(resp, 'session', None):
                             st.error("Invalid credentials")
                         else:
-                            s = session
+                            s = resp.session
                             st.session_state.update({
                                 "access_token": s.access_token,
                                 "refresh_token": s.refresh_token,
@@ -151,9 +150,8 @@ if st.session_state["active_tab"] == "Login":
                     else:
                         try:
                             resp = supabase.auth.sign_up({"email": new_email, "password": new_pwd})
-                            session = getattr(resp, 'session', None)
-                            if session:
-                                s = session
+                            if getattr(resp, 'session', None):
+                                s = resp.session
                                 st.session_state.update({
                                     "access_token": s.access_token,
                                     "refresh_token": s.refresh_token,
