@@ -4,7 +4,6 @@ import streamlit as st
 import openai
 import os
 import re
-import time
 from datetime import datetime
 from supabase import create_client, Client
 from gotrue.errors import AuthApiError
@@ -21,7 +20,7 @@ def get_supabase():
 
 supabase: Client = get_supabase()
 
-# --- Session state defaults ---
+# --- Session defaults ---
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 if "guest" not in st.session_state:
@@ -39,7 +38,7 @@ if "reset_generator_form" in st.session_state and st.session_state.reset_generat
         st.session_state.pop(key, None)
     st.session_state.reset_generator_form = False
 
-# --- Styling ---
+# --- UI ---
 st.set_page_config(page_title='ColdCraft', layout='centered')
 st.markdown("""
 <style>
@@ -59,17 +58,17 @@ st.image("https://i.imgur.com/fX4tDCb.png", width=200)
 with st.sidebar:
     st.markdown("### 👤 Session")
     if st.session_state["authenticated"]:
-        unique_id = st.session_state['user_email'] or 'default'
+        uid = st.session_state["user_email"] or "user"
         st.write(f"Logged in as: {st.session_state['user_email']}")
-        if st.button("🚪 Log out", key=f"logout_btn_{unique_id}"):
+        if st.button("🚪 Log out", key=f"logout_btn_{uid}"):
             supabase.auth.sign_out()
             st.session_state.clear()
             st.session_state["active_tab"] = "Login"
             st.rerun()
-        if st.button("📂 View My Saved Leads", key=f"view_leads_btn_{unique_id}"):
+        if st.button("📂 View My Saved Leads", key=f"view_leads_btn_{uid}"):
             st.session_state["active_tab"] = "Saved Leads"
             st.rerun()
-        if st.button("✍️ Generate New Email", key=f"gen_new_btn_{unique_id}"):
+        if st.button("✍️ Generate New Email", key=f"gen_new_btn_{uid}"):
             st.session_state["reset_generator_form"] = True
             st.session_state["active_tab"] = "Generator"
             st.rerun()
@@ -80,7 +79,7 @@ with st.sidebar:
             st.session_state["active_tab"] = "Login"
             st.rerun()
 
-# --- Login screen ---
+# --- Login ---
 if st.session_state["active_tab"] == "Login":
     if not st.session_state["authenticated"] and not st.session_state["guest"]:
         st.subheader("🔐 Welcome to ColdCraft")
@@ -109,7 +108,7 @@ if st.session_state["active_tab"] == "Login":
         st.markdown("Don't have an account? [Sign up here](https://coldcraft.supabase.co/auth/sign-up)")
         st.stop()
 
-# --- Generator UI ---
+# --- Generator ---
 if st.session_state["active_tab"] == "Generator":
     st.title("🧊 ColdCraft - Cold Email Generator")
     with st.form("generator_form"):
@@ -128,7 +127,7 @@ if st.session_state["active_tab"] == "Generator":
             st.session_state["saved_num_openers"] = num_openers
 
             messages = [
-                {"role": "system", "content": "You're a professional B2B cold email writer. Return exactly the number of openers requested, numbered 1-N."},
+                {"role": "system", "content": "You're a world-class cold email copywriter. Return exactly the number of openers requested, numbered 1-N."},
                 {"role": "user", "content":
                     f"Write {num_openers} {length.lower()} {style.lower()} cold email openers for a sales outreach.\n"
                     f"Context: {raw_lead}\n"
@@ -139,37 +138,37 @@ if st.session_state["active_tab"] == "Generator":
             ]
 
             try:
-                client = openai.OpenAI()
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=messages,
-                    max_tokens=num_openers * 80
-                )
-                result = resp.choices[0].message.content.strip()
-                openers = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)', result, re.DOTALL)
-                if len(openers) < num_openers:
-                    openers = [s.strip() for s in result.split("\n") if s.strip()][:num_openers]
-                st.session_state["openers"] = openers
-                st.session_state["generated_lead"] = {
-                    "lead": raw_lead,
-                    "company": company,
-                    "job_title": job_title,
-                    "notes": notes,
-                    "tag": tag,
-                    "style": style,
-                    "length": length,
-                    "openers": openers,
-                    "timestamp": datetime.utcnow().isoformat()
-                }
+                with st.spinner("🛠️ Generating..."):
+                    client = openai.OpenAI()
+                    resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=messages,
+                        max_tokens=num_openers * 80
+                    )
+                    result = resp.choices[0].message.content.strip()
+                    openers = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)', result, re.DOTALL)
+                    if len(openers) < num_openers:
+                        openers = [s.strip() for s in result.split("\n") if s.strip()][:num_openers]
+                    st.session_state["openers"] = openers
+                    st.session_state["generated_lead"] = {
+                        "lead": raw_lead,
+                        "company": company,
+                        "job_title": job_title,
+                        "notes": notes,
+                        "tag": tag,
+                        "style": style,
+                        "length": length,
+                        "openers": openers,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
             except Exception as e:
-                st.error(f"❌ Error from OpenAI: {e}")
+                st.error(f"❌ OpenAI error: {e}")
 
-    # --- Display results ---
     if "openers" in st.session_state:
         for i, opener in enumerate(st.session_state["openers"], 1):
             st.markdown(f"### ✉️ Opener {i}")
             if view_mode == "Card View":
-                st.markdown(f"<div style='padding: 1rem; margin-bottom: 1rem; border-radius: 12px; background-color: rgba(240,240,255,0.1); border: 1px solid rgba(200,200,200,0.3); box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>{opener}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='padding:1rem; margin-bottom:1rem; border-radius:12px; background:#fff; border:1px solid #ccc; box-shadow: 0 1px 3px rgba(0,0,0,0.05);'>{opener}</div>", unsafe_allow_html=True)
             else:
                 st.markdown(opener)
             st.code(opener, language='text')
@@ -185,11 +184,11 @@ if st.session_state["active_tab"] == "Generator":
                 except Exception as e:
                     st.error(f"❌ Save failed: {e}")
         else:
-            st.info("Log in to save this lead.")
+            st.info("🔒 Login to save your leads.")
 
         components.html("<script>window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });</script>", height=0)
 
-# --- Saved Leads tab ---
+# --- Saved Leads ---
 if st.session_state["active_tab"] == "Saved Leads":
     st.title("📁 Your Saved Leads")
     try:
@@ -204,7 +203,7 @@ if st.session_state["active_tab"] == "Saved Leads":
         leads = []
 
     if not leads:
-        st.info("No saved leads yet.")
+        st.info("No saved leads found.")
     else:
         for lead in leads:
             with st.expander(lead.get("lead", "")[:40] + "..."):
