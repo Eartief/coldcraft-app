@@ -104,20 +104,22 @@ if st.session_state["active_tab"] == "Login":
 
             if login_btn:
                 try:
-                    result = supabase.auth.sign_in_with_password({
+                    auth_response = supabase.auth.sign_in_with_password({
                         "email": email,
                         "password": pwd
                     })
-                    if result.error:
-                        raise AuthApiError(result.error.message)
-                    data = result.data
-                    sess = data["session"]  # use dict access
-                    st.session_state["access_token"] = sess["access_token"]
-                    st.session_state["refresh_token"] = sess["refresh_token"]
-                    st.session_state["authenticated"] = True
-                    st.session_state["user_email"] = email
-                    st.session_state["active_tab"] = "Generator"
-                    st.rerun()
+                    session = getattr(auth_response, 'session', None)
+                    user = getattr(auth_response, 'user', None)
+                    if not session or not user:
+                        st.error("❌ Login failed: Invalid credentials.")
+                    else:
+                        # Persist tokens
+                        st.session_state["access_token"] = session.access_token
+                        st.session_state["refresh_token"] = session.refresh_token
+                        st.session_state["authenticated"] = True
+                        st.session_state["user_email"] = user.email
+                        st.session_state["active_tab"] = "Generator"
+                        st.rerun()
                 except AuthApiError as e:
                     st.error(f"❌ Login failed: {e}")
             if guest_btn:
@@ -160,14 +162,29 @@ if st.session_state["active_tab"] == "Generator":
                     if len(openers) < num_openers:
                         openers = [line.strip() for line in result.splitlines() if line.strip()][:num_openers]
                     st.session_state["openers"] = openers
-                    st.session_state["generated_lead"] = {"lead": raw_lead, "company": company, "job_title": job_title, "notes": notes, "tag": tag, "style": style, "length": length, "openers": openers, "timestamp": datetime.utcnow().isoformat()}
+                    st.session_state["generated_lead"] = {
+                        "lead": raw_lead,
+                        "company": company,
+                        "job_title": job_title,
+                        "notes": notes,
+                        "tag": tag,
+                        "style": style,
+                        "length": length,
+                        "openers": openers,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
             except Exception as e:
                 st.error(f"❌ Error from OpenAI: {e}")
     if "openers" in st.session_state:
         for idx, opener in enumerate(st.session_state["openers"], start=1):
             st.markdown(f"### ✉️ Opener {idx}")
             if st.session_state.get("view_mode") == "Card View":
-                st.markdown(f"<div style='padding:1rem;margin-bottom:1rem;border-radius:12px;background-color:rgba(240,240,255,0.1);border:1px solid rgba(200,200,200,0.3);box-shadow:0 2px 5px rgba(0,0,0,0.1);'>{opener}</div>", unsafe_allow_html=True)
+                st.markdown(
+                    f"<div style='padding:1rem;margin-bottom:1rem;border-radius:12px;"
+                    "background-color:rgba(240,240,255,0.1);border:1px solid rgba(200,200,200,0.3);"
+                    "box-shadow:0 2px 5px rgba(0,0,0,0.1);'>{opener}</div>",
+                    unsafe_allow_html=True
+                )
             else:
                 st.markdown(opener)
             st.code(opener, language='text')
@@ -181,6 +198,7 @@ if st.session_state["active_tab"] == "Generator":
         else:
             st.info("🔒 Log in to save this lead.")
         components.html("<script>window.scrollTo({ top: document.body.scrollHeight });</script>", height=0)
+
 # --- SAVED LEADS TAB ---
 if st.session_state["active_tab"] == "Saved Leads":
     st.title("📁 Your Saved Leads")
@@ -196,7 +214,13 @@ if st.session_state["active_tab"] == "Saved Leads":
         for lead in leads:
             snippet = lead.get("lead", "")[0:120] + ("..." if len(lead.get("lead", "")) > 120 else "")
             with st.expander(snippet):
-                st.write(f"**Company:** {lead.get('company','')}  \n**Job Title:** {lead.get('job_title','')}  \n**Style/Length:** {lead.get('style','')} / {lead.get('length','')}  \n**Notes:** {lead.get('notes','')}  \n**Tag:** {lead.get('tag','')}")
+                st.write(
+                    f"**Company:** {lead.get('company','')}  \n"
+                    f"**Job Title:** {lead.get('job_title','')}  \n"
+                    f"**Style/Length:** {lead.get('style','')} / {lead.get('length','')}  \n"
+                    f"**Notes:** {lead.get('notes','')}  \n"
+                    f"**Tag:** {lead.get('tag','')}"
+                )
                 for idx, op in enumerate(lead.get("openers", []), start=1):
                     st.markdown(f"**Opener {idx}:** {op}")
                 if st.button("🗑️ Delete This Lead", key=f"del_{lead['id']}"):
@@ -206,6 +230,7 @@ if st.session_state["active_tab"] == "Saved Leads":
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Failed to delete: {e}")
+
 # Auto-scroll
 if "openers" in st.session_state:
     components.html("<script>window.scrollTo({ top: document.body.scrollHeight });</script>", height=0)
