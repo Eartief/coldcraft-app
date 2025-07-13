@@ -125,7 +125,6 @@ if st.session_state.user:
                         max_tokens=300,
                         temperature=0.7
                     )
-
                     result = response.choices[0].message.content.strip()
                     duration = round(time.time() - start_time, 2)
                     openers = parse_openers(result, num_openers)
@@ -134,16 +133,16 @@ if st.session_state.user:
                     st.success("✅ Generated cold openers:")
                     combined_output = "\n\n".join(openers)
 
-                for idx, opener in enumerate(openers):
-                    st.markdown(f"### ✉️ Opener {idx+1}")
-                    if view_mode == "Card View":
-                        st.markdown(f"""
-                            <div style='border-left: 4px solid #ccc; padding-left: 1rem; margin-bottom: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px;'>
-                                {opener}
-                            </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.markdown(opener)
+                    for idx, opener in enumerate(openers):
+                        st.markdown(f"### ✉️ Opener {idx+1}")
+                        if view_mode == "Card View":
+                            st.markdown(f"""
+                                <div style='padding: 1rem; margin-bottom: 1rem; border-radius: 12px; background-color: rgba(240,240,255,0.1); border: 1px solid rgba(200,200,200,0.3); box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>
+                                    {opener}
+                                </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(opener)
 
                         st.code(opener, language='text')
 
