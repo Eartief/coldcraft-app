@@ -5,7 +5,6 @@ import openai
 import os
 import re
 import time
-import csv
 from datetime import datetime
 from supabase import create_client, Client
 
@@ -40,16 +39,49 @@ def parse_openers(text: str, expected_count: int = 5) -> list:
     matches = re.findall(r'\d+[.)\-]*\s*(.+?)(?=\n\d+[.)\-]|\Z)', text, re.DOTALL)
     return [op.strip() for op in matches][:expected_count]
 
+# Theme Setup
 if "theme" not in st.session_state:
-    st.session_state["theme"] = "Dark"
+    st.session_state["theme"] = "Light"
 
-selected_theme = st.selectbox("🌃 Select Theme", ["Dark", "Light"], index=0 if st.session_state["theme"] == "Dark" else 1)
+selected_theme = st.selectbox("🌃 Select Theme", ["Dark", "Light"], index=1 if st.session_state["theme"] == "Light" else 0)
 st.session_state["theme"] = selected_theme
 
 if selected_theme == "Light":
-    st.markdown("""<style> html, body, .stApp { background-color: #f8f9fa; color: #111; } textarea, input, select { background-color: #fff; color: #000; } </style>""", unsafe_allow_html=True)
+    st.markdown("""
+        <style>
+        html, body, .stApp {
+            background-color: #f8f9fa;
+            color: #111;
+        }
+        textarea, input, select {
+            background-color: #fff;
+            color: #000;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 else:
-    st.markdown("""<style> html, body, .stApp { background-color: #0e1117; color: #fff; } textarea, input, select { background-color: #1e1e1e; color: #fff; } </style>""", unsafe_allow_html=True)
+    st.markdown("""
+        <style>
+        html, body, .stApp {
+            background-color: #0e1117;
+            color: #ffffff;
+        }
+        textarea, input, select {
+            background-color: #1e1e1e;
+            color: #ffffff;
+        }
+        button[kind="primary"] {
+            background-color: #2563eb;
+            color: white;
+            border: 1px solid #2563eb;
+            border-radius: 6px;
+        }
+        button[kind="primary"]:hover {
+            background-color: #1e40af;
+            border-color: #1e40af;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
 st.title("🧊 ColdCraft - Cold Email Generator")
 st.write("Paste your lead info below and get a personalized cold email opener.")
@@ -98,7 +130,10 @@ if st.button("✉️ Generate Cold Email"):
                 for idx, opener in enumerate(openers):
                     st.markdown(f"### ✉️ Opener {idx+1}")
                     if view_mode == "Card View":
-                        st.markdown(f"<div style='padding: 1rem; margin-bottom: 1rem; border-radius: 12px; background-color: rgba(240,240,255,0.1); border: 1px solid rgba(200,200,200,0.3); box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>{opener}</div>", unsafe_allow_html=True)
+                        st.markdown(
+                            f"<div style='padding: 1rem; margin-bottom: 1rem; border-radius: 12px; background-color: rgba(240,240,255,0.1); border: 1px solid rgba(200,200,200,0.3); box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>{opener}</div>",
+                            unsafe_allow_html=True
+                        )
                     else:
                         st.markdown(opener)
                     st.code(opener, language='text')
