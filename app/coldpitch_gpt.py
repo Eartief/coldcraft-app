@@ -19,6 +19,13 @@ def get_supabase():
 
 supabase: Client = get_supabase()
 
+# ⏳ Restore session on page refresh if cookie exists
+user = supabase.auth.get_user()
+if user and user.user:
+    st.session_state["authenticated"] = True
+    st.session_state["user_email"] = user.user.email
+
+# Initialize state
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 if "guest" not in st.session_state:
@@ -87,11 +94,9 @@ if st.session_state["active_tab"] == "Login":
 
             if login_btn:
                 try:
-                    session = supabase.auth.sign_in_with_password({"email": email, "password": pwd})
+                    auth_result = supabase.auth.sign_in_with_password({"email": email, "password": pwd})
                     st.session_state.authenticated = True
                     st.session_state.user_email = email
-                    st.session_state.access_token = session.session.access_token
-                    st.session_state.refresh_token = session.session.refresh_token
                     st.session_state.active_tab = "Generator"
                     st.rerun()
                 except AuthApiError as e:
@@ -104,15 +109,6 @@ if st.session_state["active_tab"] == "Login":
 
         st.markdown("Don't have an account? [Sign up here](https://coldcraft.supabase.co/auth/sign-up)")
         st.stop()
-
-# Restore session if access_token exists
-if not st.session_state["authenticated"] and "access_token" in st.session_state:
-    try:
-        user = supabase.auth.get_user(st.session_state["access_token"])
-        if user.user:
-            st.session_state["authenticated"] = True
-    except Exception:
-        pass
 
 if st.session_state["active_tab"] == "Generator":
     st.title("🧊 ColdCraft - Cold Email Generator")
@@ -173,10 +169,7 @@ if st.session_state["active_tab"] == "Generator":
         for i, opener in enumerate(st.session_state["openers"], 1):
             st.markdown(f"### ✉️ Opener {i}")
             if st.session_state["view_mode"] == "Card View":
-                st.markdown(
-                    f"<div style='padding: 1rem; margin-bottom: 1rem; border-radius: 12px; background-color: rgba(240,240,255,0.1); border: 1px solid rgba(200,200,200,0.3); box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>{opener}</div>",
-                    unsafe_allow_html=True
-                )
+                st.markdown(f"<div style='padding: 1rem; margin-bottom: 1rem; border-radius: 12px; background-color: rgba(240,240,255,0.1); border: 1px solid rgba(200,200,200,0.3); box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>{opener}</div>", unsafe_allow_html=True)
             else:
                 st.markdown(opener)
             st.code(opener, language='text')
@@ -192,7 +185,7 @@ if st.session_state["active_tab"] == "Generator":
                 except Exception as e:
                     st.error(f"❌ Save failed: {e}")
         else:
-            st.info("🔒 Log in to save this lead permanently.")
+            st.info("Log in to save this lead.")
 
         components.html("<script>window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });</script>", height=0)
 
@@ -213,9 +206,7 @@ if st.session_state["active_tab"] == "Saved Leads":
         st.info("No saved leads yet.")
     else:
         for lead in leads:
-            lead_preview = lead.get("lead", "")
-            short_preview = lead_preview[:100] + ("..." if len(lead_preview) > 100 else "")
-            with st.expander(short_preview):
+            with st.expander(lead.get("lead", "No lead text provided")):
                 st.write(f"**Company:** {lead.get('company', '')}")
                 st.write(f"**Job Title:** {lead.get('job_title', '')}")
                 st.write(f"**Style/Length:** {lead.get('style', '')} / {lead.get('length', '')}")
