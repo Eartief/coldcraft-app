@@ -1,5 +1,3 @@
-# app/coldpitch_gpt.py
-
 import streamlit as st
 import openai
 import os
@@ -19,6 +17,36 @@ def get_supabase():
 
 supabase: Client = get_supabase()
 
+# Restore auth session from saved tokens
+if st.session_state.get("access_token") and st.session_state.get("refresh_token"):
+    try:
+        supabase.auth.set_session({
+            "access_token": st.session_state["access_token"],
+            "refresh_token": st.session_state["refresh_token"]
+        })
+    except Exception:
+        pass
+
+# Retrieve current session
+session = supabase.auth.get_session()
+if session and session.user:
+    st.session_state["authenticated"] = True
+    st.session_state["user_email"] = session.user.email
+else:
+    st.session_state.setdefault("authenticated", False)
+    st.session_state.setdefault("user_email", "")
+    st.session_state.setdefault("guest", False)
+
+# Session tab defaults
+st.session_state.setdefault("active_tab", "Login")
+st.session_state.setdefault("saved_num_openers", 3)
+if st.session_state.get("reset_generator_form"):
+    for k in ["openers", "generated_lead"]:
+        st.session_state.pop(k, None)
+    for k in ["raw_lead", "company", "job_title", "notes", "tag", "style", "length", "view_mode"]:
+        st.session_state.pop(k, None)
+    st.session_state["reset_generator_form"] = False
+
 st.set_page_config(page_title='ColdCraft', layout='centered')
 st.markdown("""
 <style>
@@ -34,34 +62,17 @@ textarea, input, select {
 """, unsafe_allow_html=True)
 st.image("https://i.imgur.com/fX4tDCb.png", width=200)
 
-# Restore session on refresh
-session = supabase.auth.get_session()
-if session and session.user:
-    st.session_state["authenticated"] = True
-    st.session_state["user_email"] = session.user.email
-else:
-    st.session_state.setdefault("authenticated", False)
-    st.session_state.setdefault("user_email", "")
-    st.session_state.setdefault("guest", False)
-
-# Session tab
-st.session_state.setdefault("active_tab", "Login")
-st.session_state.setdefault("saved_num_openers", 3)
-if st.session_state.get("reset_generator_form"):
-    for k in ["openers", "generated_lead"]:
-        st.session_state.pop(k, None)
-    for k in ["raw_lead", "company", "job_title", "notes", "tag", "style", "length", "view_mode"]:
-        st.session_state.pop(k, None)
-    st.session_state["reset_generator_form"] = False
-# --- SIDEBAR ---
+# Sidebar session controls
 with st.sidebar:
     st.markdown("### 👤 Session")
     uid = st.session_state.get("user_email", "guest")
-    
     if st.session_state.get("authenticated"):
         st.write(f"Logged in as: {uid}")
         if st.button("🚪 Log out", key=f"logout_btn_{uid}"):
             supabase.auth.sign_out()
+            # clear stored tokens
+            for t in ["access_token", "refresh_token"]:
+                st.session_state.pop(t, None)
             st.session_state.clear()
             st.session_state["active_tab"] = "Login"
             st.rerun()
@@ -72,7 +83,6 @@ with st.sidebar:
             st.session_state["reset_generator_form"] = True
             st.session_state["active_tab"] = "Generator"
             st.rerun()
-
     elif st.session_state.get("guest"):
         st.write("Guest access")
         if st.button("🚪 Exit Guest Mode", key="exit_guest_btn"):
@@ -93,7 +103,15 @@ if st.session_state["active_tab"] == "Login":
 
             if login_btn:
                 try:
-                    supabase.auth.sign_in_with_password({"email": email, "password": pwd})
+                    result = supabase.auth.sign_in_with_password({
+                        "email": email,
+                        "password": pwd
+                    })
+                    if result.get("error"):
+                        raise AuthApiError(result["error"]["message"])
+                    sess = result["data"]["session"]
+                    st.session_state["access_token"] = sess["access_token"]
+                    st.session_state["refresh_token"] = sess["refresh_token"]
                     st.session_state["authenticated"] = True
                     st.session_state["user_email"] = email
                     st.session_state["active_tab"] = "Generator"
@@ -107,6 +125,7 @@ if st.session_state["active_tab"] == "Login":
 
         st.markdown("Don't have an account? [Sign up here](https://coldcraft.supabase.co/auth/sign-up)")
         st.stop()
+
 # --- GENERATOR TAB ---
 if st.session_state["active_tab"] == "Generator":
     st.title("🧊 ColdCraft - Cold Email Generator")
@@ -188,6 +207,8 @@ if st.session_state["active_tab"] == "Generator":
             st.info("🔒 Log in to save this lead.")
 
         components.html("<script>window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });</script>", height=0)
+
+# --- SAVED LEADS TAB ---
 if st.session_state["active_tab"] == "Saved Leads":
     st.title("📁 Your Saved Leads")
     try:
@@ -209,11 +230,11 @@ if st.session_state["active_tab"] == "Saved Leads":
             if len(snippet) > 120:
                 snippet = snippet[:117] + "..."
             with st.expander(snippet):
-                st.write(f"**Company:** {lead.get('company', '')}")
-                st.write(f"**Job Title:** {lead.get('job_title', '')}")
-                st.write(f"**Style/Length:** {lead.get('style', '')} / {lead.get('length', '')}")
-                st.write(f"**Notes:** {lead.get('notes', '')}")
-                st.write(f"**Tag:** {lead.get('tag', '')}")
+                st.write(f"**Company:** {lead.get("company", "")}")
+                st.write(f"**Job Title:** {lead.get("job_title", "")}")
+                st.write(f"**Style/Length:** {lead.get("style", "")} / {lead.get("length", "")}")
+                st.write(f"**Notes:** {lead.get("notes", "")}")
+                st.write(f"**Tag:** {lead.get("tag", "")}")
                 for i, op in enumerate(lead.get("openers", []), 1):
                     st.markdown(f"**Opener {i}:** {op}")
                 if st.button("🗑️ Delete This Lead", key=f"del_{lead['id']}"):
@@ -223,7 +244,8 @@ if st.session_state["active_tab"] == "Saved Leads":
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Failed to delete: {e}")
-# Auto-scroll to bottom after generating
+
+# Auto-scroll after generation
 if "openers" in st.session_state:
     components.html(
         "<script>window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });</script>",
