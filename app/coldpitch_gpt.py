@@ -154,10 +154,11 @@ if st.session_state["active_tab"] == "Login":
                         st.error("❌ Passwords do not match.")
                     else:
                         try:
-                            resp = supabase.auth.sign_up(
-    {"email": new_email, "password": new_pwd},
-    {"redirect_to": CONFIRMATION_REDIRECT_URL}
-)
+                            resp = supabase.auth.sign_up({
+    "email": new_email,
+    "password": new_pwd,
+    "options": {"email_redirect_to": CONFIRMATION_REDIRECT_URL}
+})
                             session = getattr(resp, 'session', None)
                             user = getattr(resp, 'user', None)
                             if session and user:
