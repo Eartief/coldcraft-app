@@ -9,7 +9,6 @@ from datetime import datetime
 from supabase import create_client, Client
 from gotrue.errors import AuthApiError
 
-# ---------- CONFIG ----------
 SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["anon_key"]
 openai.api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
@@ -48,16 +47,13 @@ if "active_tab" not in st.session_state:
 if "saved_num_openers" not in st.session_state:
     st.session_state["saved_num_openers"] = 3
 
-# Reset generator form fields
 if "reset_generator_form" in st.session_state and st.session_state.reset_generator_form:
     for key in ["openers", "generated_lead"]:
         st.session_state.pop(key, None)
     for key in ["raw_lead", "company", "job_title", "notes", "tag", "style", "length", "view_mode"]:
-        if key in st.session_state:
-            del st.session_state[key]
+        st.session_state.pop(key, None)
     st.session_state.reset_generator_form = False
 
-# ---------- LOGIN PAGE ----------
 if st.session_state["active_tab"] == "Login":
     if not st.session_state["authenticated"] and not st.session_state["guest"]:
         st.subheader("🔐 Welcome to ColdCraft")
@@ -90,7 +86,6 @@ if st.session_state["active_tab"] == "Login":
             st.rerun()
         st.stop()
 
-# ---------- SIDEBAR ----------
 with st.sidebar:
     st.markdown("### 👤 Session")
     if st.session_state["authenticated"]:
@@ -113,3 +108,9 @@ with st.sidebar:
             st.session_state.clear()
             st.session_state["active_tab"] = "Login"
             st.rerun()
+
+if st.session_state["active_tab"] == "Generator":
+    st.write("Loading generator...")
+
+if st.session_state["active_tab"] == "Saved Leads":
+    st.write("Loading saved leads...")
