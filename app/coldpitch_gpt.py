@@ -111,7 +111,7 @@ input, textarea, select, button {
     unsafe_allow_html=True
 )
 
-st.image("https://i.imgur.com/fX4tDCb.png", width=200)
+st.image("https://via.placeholder.com/200x100?text=ColdCraft", width=200)
 
 # Sidebar menu
 with st.sidebar:
