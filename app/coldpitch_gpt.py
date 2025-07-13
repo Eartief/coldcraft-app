@@ -93,9 +93,38 @@ with st.sidebar:
         if st.button("📂 View My Saved Leads"):
             st.session_state["active_tab"] = "Saved Leads"
             st.rerun()
+        if st.button("✍️ Generate New Email"):
+            st.session_state["active_tab"] = "Generator"
+            st.rerun()
     elif st.session_state["guest"]:
         st.write("Guest access")
         if st.button("🚪 Exit Guest Mode"):
             st.session_state["guest"] = False
             st.session_state["active_tab"] = "Login"
             st.rerun()
+
+# ---------- ROUTING ----------
+if st.session_state["active_tab"] == "Saved Leads":
+    st.title("📁 Saved Leads")
+    user_email = st.session_state.get("user_email", "")
+    try:
+        data = supabase.table("coldcraft").select("*").eq("user_email", user_email).order("timestamp", desc=True).execute()
+        leads = data.data
+        if not leads:
+            st.info("No leads saved yet.")
+        for lead in leads:
+            with st.expander(f"{lead.get('lead')[:40]}..."):
+                st.write(f"**Company**: {lead.get('company')}")
+                st.write(f"**Job Title**: {lead.get('job_title')}")
+                st.write(f"**Style**: {lead.get('style')} | **Length**: {lead.get('length')}")
+                st.write(f"**Notes**: {lead.get('notes')}")
+                st.write(f"**Tag**: {lead.get('tag')}")
+                for idx, opener in enumerate(lead.get("openers", [])):
+                    st.markdown(f"**Opener {idx+1}:** {opener}")
+    except Exception as e:
+        st.error(f"Failed to load saved leads: {e}")
+
+# include the generator logic
+if st.session_state["active_tab"] == "Generator":
+    # include generator block here (was previously working)
+    st.write("🔧 Generator interface goes here. (temporarily hidden)")
