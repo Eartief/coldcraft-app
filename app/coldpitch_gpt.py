@@ -182,22 +182,23 @@ if st.session_state["active_tab"] == "Generator":
                     st.text_area("📋 All Openers (copy manually if needed):", combined_output, height=150)
 
                     if st.session_state["authenticated"]:
-                        try:
-                            supabase.table("coldcraft").insert({
-                                "timestamp": datetime.now().isoformat(),
-                                "lead": lead,
-                                "company": company,
-                                "job_title": job_title,
-                                "style": style,
-                                "length": length,
-                                "notes": notes,
-                                "tag": tag,
-                                "openers": openers[:num_openers],
-                                "user_email": st.session_state["user_email"]
-                            }).execute()
-                            st.success("✅ Lead saved to Supabase.")
-                        except Exception as db_err:
-                            st.error(f"❌ Failed to save to Supabase: {db_err}")
+                        if st.button("💾 Save This Lead"):
+                            try:
+                                supabase.table("coldcraft").insert({
+                                    "timestamp": datetime.now().isoformat(),
+                                    "lead": lead,
+                                    "company": company,
+                                    "job_title": job_title,
+                                    "style": style,
+                                    "length": length,
+                                    "notes": notes,
+                                    "tag": tag,
+                                    "openers": openers[:num_openers],
+                                    "user_email": st.session_state["user_email"]
+                                }).execute()
+                                st.success("✅ Lead saved to Supabase.")
+                            except Exception as db_err:
+                                st.error(f"❌ Failed to save to Supabase: {db_err}")
                     else:
                         st.info("Log in to save leads.")
 
